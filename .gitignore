@@ -1,0 +1,17 @@
+# C++ objext files
+*.o
+*.lo
+*.slo
+*.obj
+
+# Executables
+atm
+bank
+proxy
+
+# Editor/backup files
+*~
+.*.swp
+
+# OS X
+.DS_Store
