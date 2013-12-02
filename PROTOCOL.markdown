@@ -30,6 +30,33 @@ Packets are queued by both the ATM and Bank such that each sends exactly one
 message every second. That is, both the Bank and ATM send one (and only one)
 message each second. If the message queue is empty, send a NullMessage.
 
+The following table shows `MessageTypeID`s and their corresponding message
+types.
+
+    +------+------------------+
+    |  ID  | Message type     |
+    +======+==================+
+    |   0  | NullMessage      |
+    +------+------------------+
+    |  -1  | ErrorMessage     |
+    +------+------------------+
+    |   1  | LoginRequest     |
+    +------+------------------+
+    |   2  | BalanceRequest   |
+    +------+------------------+
+    |   3  | WithdrawRequest  |
+    +------+------------------+
+    |   4  | TransferRequest  |
+    +------+------------------+
+    |  51  | LoginResponse    |
+    +------+------------------+
+    |  52  | BalanceResponse  |
+    +------+------------------+
+    |  53  | WithdrawResponse |
+    +------+------------------+
+    |  54  | TransferResponse |
+    +------+------------------+
+
 ## `NullMessage`
 
     +----+
