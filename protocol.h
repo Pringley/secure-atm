@@ -27,20 +27,28 @@
 #define INSUFFICIENT_FUNDS 4
 
 typedef char Packet [PACKET_SIZE];
-typedef char Field [FIELD_SIZE];
-typedef Field Fields [FIELDS];
+typedef char DataField [FIELD_SIZE];
+typedef const char *Field;
 
 bool validate_message_type(Packet const &packet);
 
-void fields_to_packet(Fields const &fields, Packet &packet);
-void packet_to_fields(Packet const &packet, Fields &fields);
+bool get_int_field(Packet const &packet, int field, int &result);
+bool get_str_field(Packet const &packet, int field, std::string &result);
+bool get_dat_field(Packet const &packet, int field, DataField &result);
 
-bool string_to_field(std::string const &string, Field &field);
-bool field_to_string(Field const &field, std::string &string);
+bool set_int_field(Packet &packet, int field, int value);
+bool set_str_field(Packet &packet, int field, std::string const &value);
+bool set_dat_field(Packet &packet, int field, DataField const &value);
 
-bool int_to_field(int i, Field &field);
-bool field_to_int(Field const &field, int &i);
-bool field_to_unsigned_int(Field const &field, unsigned int &i);
+char *get_field(Packet &packet, int field);
+const char *get_field(Packet const &packet, int field);
+
+bool int_to_field(int i, char *field);
+bool field_to_int(const char *field, int &i);
+bool field_to_unsigned_int(const char *field, unsigned int &i);
+
+bool string_to_field(std::string const &string, char *field);
+bool field_to_string(const char *field, std::string &string);
 
 // Encryption wrappers
 void encrypt_packet(Packet const &plaintext, Packet &ciphertext);
@@ -48,33 +56,63 @@ void decrypt_packet(Packet const &ciphertext, Packet &plaintext);
 void randomize(char *destination, size_t amount);
 
 bool validate_message_type(Packet const &packet) {
-    Fields fields;
-    packet_to_fields(packet, fields);
     int message_type;
-    if(!field_to_int(fields[0], message_type)) { return false; }
+    if(!get_int_field(packet, 0, message_type)) { return false; }
     return true;
 }
 
-void fields_to_packet(Fields const &fields, Packet &packet) {
-    for (int i = 0; i < FIELDS; i++) {
-        memcpy(packet + i * FIELD_SIZE, fields[i], FIELD_SIZE);
-    }
+bool get_int_field(Packet const &packet, int field, int &result) {
+    const char *field_ptr = get_field(packet, field);
+    if(!field_to_int(field_ptr, result)) { return false; }
+    return true;
 }
 
-void packet_to_fields(Packet const &packet, Fields &fields) {
-    for (int i = 0; i < FIELDS; i++) {
-        memcpy(fields[i], packet + i * FIELD_SIZE, FIELD_SIZE);
-    }
+bool get_str_field(Packet const &packet, int field, std::string &result) {
+    const char *field_ptr = get_field(packet, field);
+    if(!field_to_string(field_ptr, result)) { return false; }
+    return true;
 }
 
-bool int_to_field(int i, Field &field) {
+bool get_dat_field(Packet const &packet, int field, DataField &result) {
+    const char *field_ptr = get_field(packet, field);
+    memcpy(result, field_ptr, FIELD_SIZE);
+    return true;
+}
+
+bool set_int_field(Packet &packet, int field, int value) {
+    char *field_ptr = get_field(packet, field);
+    if(!int_to_field(value, field_ptr)) { return false; }
+    return true;
+}
+
+bool set_str_field(Packet &packet, int field, std::string const &value) {
+    char *field_ptr = get_field(packet, field);
+    if(!string_to_field(value, field_ptr)) { return false; }
+    return true;
+}
+
+bool set_dat_field(Packet &packet, int field, DataField const &value) {
+    char *field_ptr = get_field(packet, field);
+    memcpy(field_ptr, value, FIELD_SIZE);
+    return true;
+}
+
+char *get_field(Packet &packet, int field) {
+    return packet + field * FIELD_SIZE;
+}
+
+const char *get_field(Packet const &packet, int field) {
+    return packet + field * FIELD_SIZE;
+}
+
+bool int_to_field(int i, char *field) {
     std::ostringstream oss;
     oss << i;
     if(!string_to_field(oss.str(), field)) { return false; }
     return true;
 }
 
-bool field_to_int(Field const &field, int &i) {
+bool field_to_int(const char *field, int &i) {
     // Returns false if the field doesn't contain an integer
     std::string string;
     if(!field_to_string(field, string)) { return false; }
@@ -83,7 +121,7 @@ bool field_to_int(Field const &field, int &i) {
     return !iss.fail();
 }
 
-bool field_to_unsigned_int(Field const &field, unsigned int &i) {
+bool field_to_unsigned_int(const char *field, unsigned int &i) {
     // Returns false if the field doesn't contain an unsigned integer
     std::string string;
     if(!field_to_string(field, string)) { return false; }
@@ -92,7 +130,7 @@ bool field_to_unsigned_int(Field const &field, unsigned int &i) {
     return !iss.fail();
 }
 
-bool string_to_field(std::string const &string, Field &field) {
+bool string_to_field(std::string const &string, char *field) {
     // Returns false if the string doesn't fit into a field.
     if (string.size() > FIELD_SIZE) {
         return false;
@@ -106,7 +144,7 @@ bool string_to_field(std::string const &string, Field &field) {
     return true;
 }
 
-bool field_to_string(Field const &field, std::string &string) {
+bool field_to_string(const char *field, std::string &string) {
     // Returns false if the field doesn't seem to contain a string.
     size_t field_size = 0;
     while (field[field_size] != '\0' && field_size < FIELD_SIZE) {

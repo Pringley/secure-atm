@@ -1,30 +1,39 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <cstring>
 #include <cassert>
 #include "protocol.h"
 
-void test_packet_assembly() {
-    std::string message = "Hi there";
-    int index = 2;
-
-    Fields fields;
-    string_to_field(message, fields[index]);
-
+void test_packet_access() {
+    int rc;
     Packet packet;
-    fields_to_packet(fields, packet);
+    DataField data1;
+    data1[0] = 'b';
+    data1[15] = 'z';
 
-    Fields fields2;
-    packet_to_fields(packet, fields2);
+    set_int_field(packet, 0, 15);
+    set_str_field(packet, 1, "Hello, world");
+    set_dat_field(packet, 2, data1);
 
-    std::string message2;
-    field_to_string(fields2[index], message2);
+    int i;
+    rc = get_int_field(packet, 0, i);
+    assert(rc);
+    assert(i == 15);
 
-    assert(message == message2);
+    std::string message;
+    rc = get_str_field(packet, 1, message);
+    assert(rc);
+    assert(message == "Hello, world");
+
+    DataField data2;
+    rc = get_dat_field(packet, 2, data2);
+    assert(rc);
+    assert(memcmp(data1, data2, FIELD_SIZE) == 0);
 }
 
 void test_int_field() {
-    Field int_field, sint_field, str_field;
+    DataField int_field, sint_field, str_field;
     int i = 23, j = -15, k;
     unsigned int m;
     int_to_field(i, int_field);
@@ -53,7 +62,6 @@ void test_int_field() {
 }
 
 int main(int argc, const char *argv[]) {
-    test_packet_assembly();
     test_int_field();
     return 0;
 }
