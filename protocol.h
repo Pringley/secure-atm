@@ -30,6 +30,8 @@ typedef char Packet [PACKET_SIZE];
 typedef char Field [FIELD_SIZE];
 typedef Field Fields [FIELDS];
 
+bool validate_message_type(Packet const &packet);
+
 void fields_to_packet(Fields const &fields, Packet &packet);
 void packet_to_fields(Packet const &packet, Fields &fields);
 
@@ -44,6 +46,14 @@ bool field_to_unsigned_int(Field const &field, unsigned int &i);
 void encrypt_packet(Packet const &plaintext, Packet &ciphertext);
 void decrypt_packet(Packet const &ciphertext, Packet &plaintext);
 void randomize(char *destination, size_t amount);
+
+bool validate_message_type(Packet const &packet) {
+    Fields fields;
+    packet_to_fields(packet, fields);
+    int message_type;
+    if(!field_to_int(fields[0], message_type)) { return false; }
+    return true;
+}
 
 void fields_to_packet(Fields const &fields, Packet &packet) {
     for (int i = 0; i < FIELDS; i++) {
