@@ -9,6 +9,23 @@
 #define FIELD_SIZE  128
 #define FIELDS 8
 
+#define NULL_MESSAGE_ID 0
+#define ERROR_MESSAGE_ID -1
+#define LOGIN_REQUEST_ID 1
+#define BALANCE_REQUEST_ID 2
+#define WITHDRAW_REQUEST_ID 3
+#define TRANSFER_REQUEST_ID 4
+#define LOGIN_RESPONSE_ID 51
+#define BALANCE_RESPONSE_ID 52
+#define WITHDRAW_RESPONSE_ID 53
+#define TRANSFER_RESPONSE_ID 54
+
+#define GENERIC_ERROR 0
+#define REQUEST_ERROR 1
+#define LOGIN_ERROR 2
+#define AUTH_FAILURE 3
+#define INSUFFICIENT_FUNDS 4
+
 typedef char Packet [PACKET_SIZE];
 typedef char Field [FIELD_SIZE];
 typedef Field Fields [FIELDS];
