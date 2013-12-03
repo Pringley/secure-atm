@@ -85,19 +85,11 @@ void* client_thread(void* arg)
 	printf("[bank] client ID #%d connected\n", csock);
 	
 	//input loop
-	int length;
 	Packet packet;
 	while(1)
 	{
 		//read the packet from the ATM
-		if(sizeof(int) != recv(csock, &length, sizeof(int), 0))
-			break;
-		if(length >= PACKET_SIZE)
-		{
-			printf("packet too long\n");
-			break;
-		}
-		if(length != recv(csock, packet, length, 0))
+		if(PACKET_SIZE != recv(csock, packet, PACKET_SIZE, 0))
 		{
 			printf("[bank] fail to read packet\n");
 			break;
@@ -108,12 +100,7 @@ void* client_thread(void* arg)
 		//TODO: put new data in packet
 		
 		//send the new packet back to the client
-		if(sizeof(int) != send(csock, &length, sizeof(int), 0))
-		{
-			printf("[bank] fail to send packet length\n");
-			break;
-		}
-		if(length != send(csock, (void*)packet, length, 0))
+		if(PACKET_SIZE != send(csock, (void*)packet, PACKET_SIZE, 0))
 		{
 			printf("[bank] fail to send packet\n");
 			break;
