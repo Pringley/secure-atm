@@ -619,7 +619,7 @@ bool transfer_funds(std::string const &from, std::string const &to, unsigned int
 
     pthread_mutex_unlock(&EVIL_GLOBAL_STATE_MUTEX);
 
-    return true;
+    return res;
 }
 
 bool adjust_balance(std::string const &username, int delta) {
