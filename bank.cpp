@@ -12,8 +12,11 @@
 #include <pthread.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
 
 #include <string>
+#include <set>
+#include <utility>
 
 #include "protocol.h"
 
@@ -22,6 +25,13 @@ void* console_thread(void* arg);
 
 /* evil global state */
 pthread_mutex_t EVIL_GLOBAL_STATE_MUTEX;
+
+struct NoncePair {
+    DataField atm;
+    DataField bank;
+    time_t created;
+};
+std::vector<NoncePair> valid_nonce_pairs;
 
 char key[KEY_SIZE]; // shared key
 
@@ -37,6 +47,8 @@ void handle_other(Packet const &packet, Packet &response);
 
 // Use up a nonce pair, return false if it doesn't exist.
 bool pop_nonce_pair(DataField const &atm_nonce, DataField const &bank_nonce);
+
+void push_nonce_pair(DataField const &atm_nonce, DataField const &bank_nonce);
 
 bool check_auth_token(DataField const &auth_token, std::string &username);
 
@@ -250,7 +262,7 @@ void handle_nonce(Packet const &packet, Packet &response) {
     // Generate a new nonce for the bank.
     randomize(rmsg.bank_nonce, FIELD_SIZE);
 
-    // TODO: store this nonce pair somewhere
+    push_nonce_pair(rmsg.atm_nonce, rmsg.bank_nonce);
 
     encode_nonce_response(response, rmsg);
 }
@@ -417,8 +429,35 @@ void handle_other(Packet const &packet, Packet &response) {
 }
 
 bool pop_nonce_pair(DataField const &atm_nonce, DataField const &bank_nonce) {
-    // TODO: actually write nonce pair popper
-    return false;
+    pthread_mutex_lock(&EVIL_GLOBAL_STATE_MUTEX);
+    bool found = false;
+    time_t created;
+    for(std::vector<NoncePair>::iterator i = valid_nonce_pairs.begin();
+        i != valid_nonce_pairs.end(); ++i) {
+        if(memcmp(i->atm, atm_nonce, FIELD_SIZE) == 0 &&
+           memcmp(i->bank, bank_nonce, FIELD_SIZE) == 0) {
+            found = true;
+            created = i->created;
+            valid_nonce_pairs.erase(i);
+            break;
+        }
+    }
+    pthread_mutex_unlock(&EVIL_GLOBAL_STATE_MUTEX);
+    time_t now;
+    time(&now);
+    // expire pairs after 30 seconds
+    return found && difftime(now, created) < 30;
+}
+
+void push_nonce_pair(DataField const &atm_nonce, DataField const &bank_nonce) {
+    NoncePair pair;
+    memcpy(pair.atm, atm_nonce, FIELD_SIZE);
+    memcpy(pair.bank, bank_nonce, FIELD_SIZE);
+    time(&pair.created);
+
+    pthread_mutex_lock(&EVIL_GLOBAL_STATE_MUTEX);
+    valid_nonce_pairs.push_back(pair);
+    pthread_mutex_unlock(&EVIL_GLOBAL_STATE_MUTEX);
 }
 
 bool check_auth_token(DataField const &auth_token, std::string &username) {
