@@ -520,7 +520,7 @@ void encrypt_packet(Packet &packet, const char *key) {
     byte *ptr = (byte *)packet;
     CryptoPP::AES::Encryption enc((const byte *)key, KEY_SIZE);
 
-    assert(PACKET_SIZE / enc.BlockSize() == 0);
+    assert(PACKET_SIZE % enc.BlockSize() == 0);
     for (unsigned i = 0; i < PACKET_SIZE; i += enc.BlockSize()) {
         enc.ProcessBlock(ptr);
         ptr += enc.BlockSize();
@@ -547,7 +547,7 @@ bool decrypt_packet(Packet &packet, const char *key) {
     byte *ptr = (byte *)packet;
     CryptoPP::AES::Decryption dec((const byte *)key, KEY_SIZE);
 
-    assert(PACKET_SIZE / dec.BlockSize() == 0);
+    assert(PACKET_SIZE % dec.BlockSize() == 0);
     for (unsigned i = 0; i < PACKET_SIZE; i += dec.BlockSize()) {
         dec.ProcessBlock(ptr);
         ptr += dec.BlockSize();
