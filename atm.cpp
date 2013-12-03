@@ -185,10 +185,20 @@ bool bank_login(const char *user, const char *pin) {
     int message_type = get_message_type(packet);
     if(message_type != LOGIN_RESPONSE_ID) {
         std::cerr << "Expected LoginResponse from server." << std::endl;
+        return false;
     }
 
     login_response_t response;
-    decode_login_response(packet, response);
+    if(!decode_login_response(packet, response)) {
+        std::cerr << "Could not decode server response." << std::endl;
+        return false;
+    }
+
+    if(memcmp(nonces.atm_nonce, response.atm_nonce, FIELD_SIZE) != 0 ||
+       memcmp(nonces.bank_nonce, response.bank_nonce, FIELD_SIZE) != 0) {
+        std::cerr << "Possible replay attack! Invalid response." << std::endl;
+        return false;
+    }
 
     // store the auth token we got from the server
     memcpy(auth_token, response.auth_token, FIELD_SIZE);
@@ -199,8 +209,70 @@ bool bank_login(const char *user, const char *pin) {
     return true;
 }
 
+void print_transaction_cert(DataField const &atm_nonce, DataField const &bank_nonce) {
+}
+
 bool bank_withdraw(unsigned int amt) {
-    return false;
+    withdraw_request_t req;
+    memcpy(req.atm_nonce, nonces.atm_nonce, FIELD_SIZE);
+    memcpy(req.bank_nonce, nonces.bank_nonce, FIELD_SIZE);
+    memcpy(req.auth_token, auth_token, FIELD_SIZE);
+    req.amount = amt;
+
+    Packet packet;
+    if(!encode_withdraw_request(packet, req)) {
+        std::cerr << "Could not encode withdraw request." << std::endl;
+        return false;
+    }
+
+    if(!send_recv(packet)) {
+        std::cerr << "Error transmitting withdraw request." << std::endl;
+        print_transaction_cert(nonces.atm_nonce, nonces.bank_nonce);
+        return false;
+    }
+
+    int message_type = get_message_type(packet);
+    if(message_type == ERROR_MESSAGE_ID) {
+        error_message_t err;
+        decode_error_message(packet, err);
+        if(err.error_code == AUTH_FAILURE) {
+            std::cerr << "Not logged in!" << std::endl;
+            return false;
+        }
+        else if (err.error_code == INSUFFICIENT_FUNDS) {
+            std::cerr << "Withdraw failed; insufficient funds." << std::endl;
+            return false;
+        }
+        else {
+            std::cerr << "Error: " << err.error_message << std::endl;
+            print_transaction_cert(nonces.atm_nonce, nonces.bank_nonce);
+            return false;
+        }
+    }
+    if(message_type != WITHDRAW_RESPONSE_ID) {
+        std::cerr << "Expected WithdrawResponse from server." << std::endl;
+        std::cerr << "Got #" << message_type << std::endl;
+        print_transaction_cert(nonces.atm_nonce, nonces.bank_nonce);
+        return false;
+    }
+
+    withdraw_response_t response;
+    if(!decode_withdraw_response(packet, response)) {
+        std::cerr << "Could not decode server response." << std::endl;
+        print_transaction_cert(nonces.atm_nonce, nonces.bank_nonce);
+        return false;
+    }
+
+    if(memcmp(nonces.atm_nonce, response.atm_nonce, FIELD_SIZE) != 0 ||
+       memcmp(nonces.bank_nonce, response.bank_nonce, FIELD_SIZE) != 0) {
+        std::cerr << "Possible replay attack! Invalid response." << std::endl;
+        print_transaction_cert(nonces.atm_nonce, nonces.bank_nonce);
+        return false;
+    }
+
+    std::cout << amt << " withdrawn" << std::endl;
+
+    return true;
 }
 
 bool bank_transfer(unsigned int amt, const char *user) {
@@ -255,9 +327,11 @@ bool send_recv(Packet &packet) {
     if(message_type == ERROR_MESSAGE_ID) {
         error_message_t err;
         decode_error_message(packet, err);
-        std::cout << "server error " << err.error_code
-                  << ": " << err.error_message << std::endl;
-        return false;
+        if(err.error_code == GENERIC_ERROR) {
+            std::cout << "server error " << err.error_code
+                      << ": " << err.error_message << std::endl;
+            return false;
+        }
     }
     return true;
 }
