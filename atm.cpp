@@ -31,6 +31,8 @@ void bank_logout(void);
 
 bool get_nonces(nonce_response_t &nonce_response);
 
+bool send_recv(Packet &packet);
+
 int main(int argc, char* argv[])
 {
 	if(argc != 2)
@@ -143,32 +145,6 @@ int main(int argc, char* argv[])
                 continue;
             }
         }
-        
-        Packet packet;
-        // TODO: send a real request, not a null message
-        // use nonces.atm_nonce and nonces.bank_nonce
-        encode_null_message(packet);
-		
-        encrypt_packet(packet, key);
-		//send the packet through the proxy to the bank
-		if(PACKET_SIZE != send(sock, (void*)packet, PACKET_SIZE, 0))
-		{
-			printf("fail to send packet\n");
-			break;
-		}
-		
-		//TODO: do something with response packet
-		if(PACKET_SIZE != recv(sock, packet, PACKET_SIZE, 0))
-		{
-			printf("fail to read packet\n");
-			break;
-		}
-        if(!decrypt_packet(packet, key)) {
-            printf("unauthenticated packet (ignoring)!\n");
-            continue;
-        }
-        int message_type = get_message_type(packet);
-        printf("Got a response! %d\n", message_type);
 	}
 
     bank_logout();
@@ -213,21 +189,29 @@ bool get_nonces(nonce_response_t &nonce_response) {
         return false;
     }
     
-    while(true) {
-        if(PACKET_SIZE != recv(sock, packet, PACKET_SIZE, 0))
-        {
-            printf("fail to read packet\n");
-            return false;
-        }
-        if(!decrypt_packet(packet, key)) {
-            printf("unauthenticated nonce packet! (ignoring)\n");
-            continue;
-        }
-        break;
-    }
+    if(!send_recv(packet)) { return false; }
+
     int message_type = get_message_type(packet);
     if(message_type != NONCE_RESPONSE_ID) { return false; }
     if(!decode_nonce_response(packet, nonce_response)) { return false; }
     return true;
 }
 
+bool send_recv(Packet &packet) {
+    encrypt_packet(packet, key);
+    if(PACKET_SIZE != send(sock, (void*)packet, PACKET_SIZE, 0))
+    {
+        printf("fail to send packet\n");
+        return false;
+    }
+    if(PACKET_SIZE != recv(sock, packet, PACKET_SIZE, 0))
+    {
+        printf("fail to read packet\n");
+        return false;
+    }
+    if(!decrypt_packet(packet, key)) {
+        printf("rejecting unauthenticated packet\n");
+        return false;
+    }
+    return true;
+}
