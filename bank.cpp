@@ -18,6 +18,7 @@
 #include <vector>
 #include <iostream>
 #include <map>
+#include <fstream>
 
 #include "protocol.h"
 
@@ -44,6 +45,7 @@ std::vector<AuthInfo> valid_auth_info;
 struct UserInfo {
     std::string username;
     std::string pin;
+    std::string card;
     unsigned int balance;
 };
 std::map<std::string, UserInfo> all_users;
@@ -71,7 +73,7 @@ void store_auth_token(DataField const &auth_token, std::string const &username);
 
 bool check_user_exists(std::string const &username);
 
-void add_user(std::string const &username, unsigned int balance);
+void add_user(std::string const &username, unsigned int balance, std::string pin);
 bool get_user(UserInfo *dest, std::string const &username);
 
 bool transfer_funds(std::string const &from, std::string const &to, unsigned int amt);
@@ -92,9 +94,9 @@ int main(int argc, char* argv[])
     decode_key(key);
 
     //user setup
-    add_user("Alice", 100);
-    add_user("Bob", 50);
-    add_user("Eve", 0);
+    add_user("Alice", 100, "deadbeef");
+    add_user("Bob", 50, "deadbeef2.0");
+    add_user("Eve", 0, "deadbeeftastic");
 
     //mutex setup
     pthread_mutex_init(&EVIL_GLOBAL_STATE_MUTEX, NULL);
@@ -318,8 +320,7 @@ void handle_login(Packet const &packet, Packet &response) {
     // msg.username msg.card msg.pin
     UserInfo info;
     if(get_user(&info, msg.username)) {
-        // TODO: check card info
-        if(msg.pin == info.pin) {
+        if(msg.pin == info.pin && msg.card == info.card) {
             verified = true;
         }
     }
@@ -563,12 +564,22 @@ void store_auth_token(DataField const &auth_token, std::string const &username) 
     pthread_mutex_unlock(&EVIL_GLOBAL_STATE_MUTEX);
 }
 
-void add_user(std::string const &username, unsigned int balance) {
+void add_user(std::string const &username, unsigned int balance, std::string pin) {
     UserInfo info;
 
     info.username = username;
-    info.pin = "deadbeef";
+    info.pin = pin;
     info.balance = balance;
+
+    std::fstream file((username + ".card").c_str());
+    file >> info.card;
+    if(file.fail()) {
+        std::cerr << "Could not read .card file." << std::endl;
+        std::cerr << "User creation failed for " << username << std::endl;
+        file.close();
+        return;
+    }
+    file.close();
 
     all_users[username] = info;
 }
