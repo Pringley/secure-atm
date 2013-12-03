@@ -27,7 +27,7 @@ DataField auth_token;
 bool logged_in = false;
 
 bool check_logged_in(void);
-bool bank_login(const char *user, const char *pin);
+bool bank_login(const char *user);
 bool bank_withdraw(unsigned int amt);
 bool bank_transfer(unsigned int amt, const char *user);
 void bank_logout(void);
@@ -88,6 +88,7 @@ int main(int argc, char* argv[])
 		if(!strcmp(buf, "logout"))
 			break;
 		char *cmd = strtok(buf, " ");
+        if(!cmd) { continue; }
 		if(!strcmp(cmd, "login")) {
             if(check_logged_in()) {
                 printf("[atm] already logged in - logging out now\n");
@@ -98,8 +99,7 @@ int main(int argc, char* argv[])
                 printf("[atm] usage: login [username]\n");
                 continue;
             }
-            char *pin = getpass("PIN: ");
-            bank_login(user, pin);
+            bank_login(user);
 		} else if(!strcmp(cmd, "balance")) {
             if(!check_logged_in()) {
                 printf("[atm] not logged in\n");
@@ -164,12 +164,11 @@ bool check_logged_in(void) {
     return logged_in;
 }
 
-bool bank_login(const char *user, const char *pin) {
+bool bank_login(const char *user) {
     login_request_t req;
     memcpy(req.atm_nonce, nonces.atm_nonce, FIELD_SIZE);
     memcpy(req.bank_nonce, nonces.bank_nonce, FIELD_SIZE);
     req.username = std::string(user);
-    req.pin = std::string(pin);
 
     // Read card from file in CWD.
     std::fstream file((req.username + ".card").c_str());
@@ -184,6 +183,8 @@ bool bank_login(const char *user, const char *pin) {
     }
     file.close();
 
+    req.pin = std::string(getpass("PIN: "));
+
     Packet packet;
     if(!encode_login_request(packet, req)) {
         std::cerr << "Could not encode login request." << std::endl;
@@ -196,6 +197,18 @@ bool bank_login(const char *user, const char *pin) {
     }
 
     int message_type = get_message_type(packet);
+    if(message_type == ERROR_MESSAGE_ID) {
+        error_message_t err;
+        decode_error_message(packet, err);
+        if(err.error_code == LOGIN_ERROR) {
+            std::cerr << "Invalid credentials" << std::endl;
+            return false;
+        }
+        else {
+            std::cerr << "server error" << std::endl;
+            return false;
+        }
+    }
     if(message_type != LOGIN_RESPONSE_ID) {
         std::cerr << "Expected LoginResponse from server." << std::endl;
         return false;
