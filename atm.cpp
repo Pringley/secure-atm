@@ -11,6 +11,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "protocol.h"
+
 int main(int argc, char* argv[])
 {
 	if(argc != 2)
@@ -50,7 +52,7 @@ int main(int argc, char* argv[])
 		buf[strlen(buf)-1] = '\0';	//trim off trailing newline
 		
 		//TODO: your input parsing code has to put data here
-		char packet[1024];
+		Packet packet;
 		int length = 1;
 		
 		//input parsing
@@ -76,7 +78,7 @@ int main(int argc, char* argv[])
 			printf("fail to read packet length\n");
 			break;
 		}
-		if(length >= 1024)
+		if(length >= PACKET_SIZE)
 		{
 			printf("packet too long\n");
 			break;

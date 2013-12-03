@@ -12,6 +12,8 @@
 #include <pthread.h>
 #include <string.h>
 
+#include "protocol.h"
+
 void* client_thread(void* arg);
 void* console_thread(void* arg);
 
@@ -78,13 +80,13 @@ void* client_thread(void* arg)
 	
 	//input loop
 	int length;
-	char packet[1024];
+	Packet packet;
 	while(1)
 	{
 		//read the packet from the ATM
 		if(sizeof(int) != recv(csock, &length, sizeof(int), 0))
 			break;
-		if(length >= 1024)
+		if(length >= PACKET_SIZE)
 		{
 			printf("packet too long\n");
 			break;
