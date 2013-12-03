@@ -38,6 +38,8 @@ bool pop_nonce_pair(DataField const &atm_nonce, DataField const &bank_nonce);
 
 bool check_auth_token(DataField const &auth_token, std::string &username);
 
+bool check_user_exists(std::string const &username);
+
 bool adjust_balance(std::string const &username, int delta);
 unsigned int get_balance(std::string const &username);
 
@@ -190,6 +192,10 @@ void* console_thread(void* arg)
                 printf("[bank] usage: deposit [username] [amount]\n");
                 continue;
             }
+            if (!check_user_exists(user)) {
+                printf("[bank] user '%s' doesn't exist\n", user);
+                continue;
+            }
             errno = 0;
             long amt = strtol(amt_str, NULL, 10);
             if (errno) {
@@ -200,14 +206,22 @@ void* console_thread(void* arg)
                 printf("[bank] unable to make deposit\n");
                 continue;
             }
+            unsigned int bal = get_balance(user);
+            printf("[bank] new balance of '%s': %u\n", user, bal);
         }
         else if (!strcmp(cmd, "balance"))
         {
             char *user = strtok(NULL, " ");
             if (!user) {
-                printf("[bank] usage: balance [username]");
+                printf("[bank] usage: balance [username]\n");
                 continue;
             }
+            if (!check_user_exists(user)) {
+                printf("[bank] user '%s' doesn't exist\n", user);
+                continue;
+            }
+            unsigned int bal = get_balance(user);
+            printf("[bank] balance of '%s': %u\n", user, bal);
         }
 	}
 }
@@ -405,6 +419,11 @@ bool pop_nonce_pair(DataField const &atm_nonce, DataField const &bank_nonce) {
 
 bool check_auth_token(DataField const &auth_token, std::string &username) {
     // TODO: actually write auth token checker
+    return false;
+}
+
+bool check_user_exists(std::string const &username) {
+    // NOBODY EXISTS MUAHAHAH
     return false;
 }
 
