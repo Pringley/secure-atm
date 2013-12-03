@@ -15,8 +15,8 @@
 #include <time.h>
 
 #include <string>
-#include <set>
-#include <utility>
+#include <vector>
+#include <iostream>
 
 #include "protocol.h"
 
@@ -32,6 +32,13 @@ struct NoncePair {
     time_t created;
 };
 std::vector<NoncePair> valid_nonce_pairs;
+
+struct AuthInfo {
+    std::string username;
+    DataField token;
+    time_t created;
+};
+std::vector<AuthInfo> valid_auth_info;
 
 char key[KEY_SIZE]; // shared key
 
@@ -51,6 +58,8 @@ bool pop_nonce_pair(DataField const &atm_nonce, DataField const &bank_nonce);
 void push_nonce_pair(DataField const &atm_nonce, DataField const &bank_nonce);
 
 bool check_auth_token(DataField const &auth_token, std::string &username);
+
+void store_auth_token(DataField const &auth_token, std::string const &username);
 
 bool check_user_exists(std::string const &username);
 
@@ -303,7 +312,8 @@ void handle_login(Packet const &packet, Packet &response) {
     // Generate a new auth token for the user.
     randomize(rmsg.auth_token, FIELD_SIZE);
 
-    // TODO: store the auth token and username somewhere
+    // associate the auth token with the user
+    store_auth_token(rmsg.auth_token, msg.username);
 
     encode_login_response(response, rmsg);
 }
@@ -461,8 +471,46 @@ void push_nonce_pair(DataField const &atm_nonce, DataField const &bank_nonce) {
 }
 
 bool check_auth_token(DataField const &auth_token, std::string &username) {
-    // TODO: actually write auth token checker
+    // also looks up username, overwrites the input arg
+    pthread_mutex_lock(&EVIL_GLOBAL_STATE_MUTEX);
+    bool found = false;
+    time_t created;
+    for(std::vector<AuthInfo>::iterator i = valid_auth_info.begin();
+        i != valid_auth_info.end(); ++i) {
+        if(memcmp(i->token, auth_token, FIELD_SIZE) == 0) {
+            found = true;
+            created = i->created;
+            username = i->username;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&EVIL_GLOBAL_STATE_MUTEX);
+    time_t now;
+    time(&now);
+    // expire tokens after 5 minutes (300 seconds)
+    return found && difftime(now, created) < 300;
     return false;
+}
+
+void store_auth_token(DataField const &auth_token, std::string const &username) {
+    AuthInfo auth;
+    auth.username = username;
+    memcpy(auth.token, auth_token, FIELD_SIZE);
+    time(&auth.created);
+
+    pthread_mutex_lock(&EVIL_GLOBAL_STATE_MUTEX);
+    // expire old token(s)
+    for (std::vector<AuthInfo>::iterator i = valid_auth_info.begin();
+        i != valid_auth_info.end(); ++i) {
+        if (i->username == username) {
+            std::cout << "expiring login for " << username << std::endl;
+            i = valid_auth_info.erase(i);
+            if (i == valid_auth_info.end()) { break; }
+        }
+    }
+    // allow new token
+    valid_auth_info.push_back(auth);
+    pthread_mutex_unlock(&EVIL_GLOBAL_STATE_MUTEX);
 }
 
 bool check_user_exists(std::string const &username) {
