@@ -1,6 +1,6 @@
 CRYPTOPP_INC?=/usr/include/crypto++
 CRYPTOPP_LIB_PATH?=/usr/lib
-KEY_BASE64?=dummy_key_text
+KEY_BASE64?=dummykey
 GPP_FLAGS=-m32 -DPRIVATE_SHARED_KEY_BASE64="\"$(KEY_BASE64)\"" -I$(CRYPTOPP_INC) -L$(CRYPTOPP_LIB_PATH) -lcrypto++ -lpthread
 
 .PHONY: all
