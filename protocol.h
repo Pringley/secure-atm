@@ -51,6 +51,8 @@ typedef char Packet [PACKET_SIZE];
 typedef char DataField [FIELD_SIZE];
 typedef const char *Field;
 
+typedef char TransactionCert[FIELD_SIZE * 2 + 512/8];
+
 struct error_message_t {
     int error_code;
     std::string error_message;
@@ -145,6 +147,11 @@ bool decode_transfer_response(Packet const &packet, transfer_response_t &msg);
 void encrypt_packet(Packet &packet, const char *key);
 bool decrypt_packet(Packet &packet, const char *key);
 void randomize(char *destination, size_t amount);
+
+bool generate_transaction_cert(DataField const &atm_nonce,
+                               DataField const &bank_nonce,
+                               const char *key,
+                               TransactionCert &cert);
 
 /********************
  * HELPER FUNCTIONS *
@@ -508,6 +515,24 @@ void decode_key(char *dest) {
 }
 
 typedef CryptoPP::HMAC<CryptoPP::SHA512> HMAC_SHA512;
+
+bool generate_transaction_cert(DataField const &atm_nonce,
+                               DataField const &bank_nonce,
+                               const char *key,
+                               TransactionCert &cert) {
+    // The cert concatinates the two nonces, then appends an HMAC of the
+    // nonces. This allows a crypto-savvy bank employee to check if the nonce
+    // pair is in the log of successful transactions. If it is, then the user
+    // is given the $$ that they weren't vended at the ATM. (This cert is only
+    // generated in the event of a withdraw failure, so it can't be used to
+    // "re-withdraw" funds that successfully vended.)
+    memcpy(cert, atm_nonce, FIELD_SIZE);
+    memcpy(cert + FIELD_SIZE, atm_nonce, FIELD_SIZE);
+    HMAC_SHA512 hmac((const byte *)key, KEY_SIZE);
+    hmac.Update((byte *)cert, FIELD_SIZE*2);
+    hmac.Final((byte *)cert + FIELD_SIZE*2);
+    return true;
+}
 
 void encrypt_packet(Packet &packet, const char *key) {
 

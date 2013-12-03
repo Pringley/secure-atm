@@ -81,6 +81,10 @@ int main(int argc, char* argv[])
 
         // Get nonces from Bank.
         if(!get_nonces(nonces)) {
+            if(!sock_alive) {
+                printf("bank connection terminated -- request failed\n");
+                break;
+            }
             printf("nonce negotiation failed -- try again please\n");
             continue;
         }
@@ -231,6 +235,19 @@ bool bank_login(const char *user) {
 }
 
 void print_transaction_cert(DataField const &atm_nonce, DataField const &bank_nonce) {
+    TransactionCert cert;
+    generate_transaction_cert(atm_nonce, bank_nonce, key, cert);
+
+    std::cout << "There was an error during the confirmation of your transaction\n"
+              << "with the bank server. If this was a withdraw transaction, it\n"
+              << "may have completed, but we cannot verify.\n"
+              << "\n"
+              << "If you wish to verify this transaction with a bank employee,\n"
+              << "present the following certificate and they will give you $$:\n"
+              << std::endl;
+
+    dump_hex((const byte *) cert, sizeof(TransactionCert));
+    std::cout << std::endl;
 }
 
 bool bank_balance() {
@@ -366,7 +383,7 @@ bool bank_transfer(unsigned int amt, const char *user) {
 
     if(!send_recv(packet)) {
         std::cerr << "Error transmitting transfer request." << std::endl;
-        print_transaction_cert(nonces.atm_nonce, nonces.bank_nonce);
+        std::cerr << "transfer may have failed -- check your balance" << std::endl;
         return false;
     }
 
@@ -383,29 +400,28 @@ bool bank_transfer(unsigned int amt, const char *user) {
             return false;
         }
         else {
-            std::cerr << "transfer failed" << std::endl;
-            print_transaction_cert(nonces.atm_nonce, nonces.bank_nonce);
+            std::cerr << "transfer may have failed -- check your balance" << std::endl;
             return false;
         }
     }
     if(message_type != TRANSFER_RESPONSE_ID) {
         std::cerr << "Expected TransferResponse from server." << std::endl;
         std::cerr << "Got #" << message_type << std::endl;
-        print_transaction_cert(nonces.atm_nonce, nonces.bank_nonce);
+        std::cerr << "transfer may have failed -- check your balance" << std::endl;
         return false;
     }
 
     transfer_response_t response;
     if(!decode_transfer_response(packet, response)) {
         std::cerr << "Could not decode server response." << std::endl;
-        print_transaction_cert(nonces.atm_nonce, nonces.bank_nonce);
+        std::cerr << "transfer may have failed -- check your balance" << std::endl;
         return false;
     }
 
     if(memcmp(nonces.atm_nonce, response.atm_nonce, FIELD_SIZE) != 0 ||
        memcmp(nonces.bank_nonce, response.bank_nonce, FIELD_SIZE) != 0) {
         std::cerr << "Possible replay attack! Invalid response." << std::endl;
-        print_transaction_cert(nonces.atm_nonce, nonces.bank_nonce);
+        std::cerr << "transfer may have failed -- check your balance" << std::endl;
         return false;
     }
 
