@@ -12,6 +12,8 @@
 #include <pthread.h>
 #include <string.h>
 
+#include <string>
+
 #include "protocol.h"
 
 void* client_thread(void* arg);
@@ -29,6 +31,13 @@ void handle_withdraw(Packet const &packet, Packet &response);
 void handle_transfer(Packet const &packet, Packet &response);
 void handle_invalid(Packet const &packet, Packet &response);
 void handle_other(Packet const &packet, Packet &response);
+
+// Use up a nonce pair, return false if it doesn't exist.
+bool pop_nonce_pair(DataField const &atm_nonce, DataField const &bank_nonce);
+
+bool check_auth_token(DataField const &auth_token, std::string &username);
+
+unsigned int get_balance(std::string username);
 
 int main(int argc, char* argv[])
 {
@@ -166,28 +175,202 @@ void* console_thread(void* arg)
 }
 
 void handle_null(Packet const &packet, Packet &response) {
+    // Respond to null with null.
+    encode_null_message(response);
 }
 
 void handle_error(Packet const &packet, Packet &response) {
+    // Ignore errors from ATM -- puny ATM!!
+    encode_null_message(response);
 }
 
 void handle_nonce(Packet const &packet, Packet &response) {
+    nonce_request_t msg;
+    decode_nonce_request(packet, msg);
+
+    nonce_response_t rmsg;
+    // Copy the ATM nonce in the response.
+    memcpy(rmsg.atm_nonce, msg.atm_nonce, FIELD_SIZE);
+    // Generate a new nonce for the bank.
+    randomize(rmsg.bank_nonce, FIELD_SIZE);
+
+    // TODO: store this nonce pair somewhere
+
+    encode_nonce_response(response, rmsg);
 }
 
 void handle_login(Packet const &packet, Packet &response) {
+    login_request_t msg;
+    decode_login_request(packet, msg);
+
+    if(!pop_nonce_pair(msg.atm_nonce, msg.bank_nonce)) {
+        error_message_t err;
+        err.error_code = REQUEST_ERROR;
+        err.error_message = "invalid nonces";
+        memcpy(err.atm_nonce, msg.atm_nonce, FIELD_SIZE);
+        memcpy(err.bank_nonce, msg.bank_nonce, FIELD_SIZE);
+        encode_error_message(response, err);
+        return;
+    }
+
+    bool verified = true;
+    // TODO: actually verify the user's credentials
+    // msg.username msg.card msg.pin
+
+    // Send error if verify fails.
+    if(!verified) {
+        error_message_t err;
+        err.error_code = LOGIN_ERROR;
+        err.error_message = "could not login";
+        memcpy(err.atm_nonce, msg.atm_nonce, FIELD_SIZE);
+        memcpy(err.bank_nonce, msg.bank_nonce, FIELD_SIZE);
+        encode_error_message(response, err);
+        return;
+    }
+
+    // On success, send an auth token.
+    login_response_t rmsg;
+    memcpy(rmsg.atm_nonce, msg.atm_nonce, FIELD_SIZE);
+    memcpy(rmsg.bank_nonce, msg.bank_nonce, FIELD_SIZE);
+    // Generate a new auth token for the user.
+    randomize(rmsg.auth_token, FIELD_SIZE);
+
+    // TODO: store the auth token and username somewhere
+
+    encode_login_response(response, rmsg);
 }
 
 void handle_balance(Packet const &packet, Packet &response) {
+    balance_request_t msg;
+    decode_balance_request(packet, msg);
+
+    // Check nonces.
+    if(!pop_nonce_pair(msg.atm_nonce, msg.bank_nonce)) {
+        error_message_t err;
+        err.error_code = REQUEST_ERROR;
+        err.error_message = "invalid nonces";
+        memcpy(err.atm_nonce, msg.atm_nonce, FIELD_SIZE);
+        memcpy(err.bank_nonce, msg.bank_nonce, FIELD_SIZE);
+        encode_error_message(response, err);
+        return;
+    }
+
+    // Check auth token.
+    std::string username;
+    if(!check_auth_token(msg.auth_token, username)) {
+        error_message_t err;
+        err.error_code = AUTH_FAILURE;
+        err.error_message = "invalid auth token";
+        memcpy(err.atm_nonce, msg.atm_nonce, FIELD_SIZE);
+        memcpy(err.bank_nonce, msg.bank_nonce, FIELD_SIZE);
+        encode_error_message(response, err);
+        return;
+    }
+
+    balance_response_t rmsg;
+    memcpy(rmsg.atm_nonce, msg.atm_nonce, FIELD_SIZE);
+    memcpy(rmsg.bank_nonce, msg.bank_nonce, FIELD_SIZE);
+    rmsg.balance = get_balance(username);
+    encode_balance_response(response, rmsg);
 }
 
 void handle_withdraw(Packet const &packet, Packet &response) {
+    withdraw_request_t msg;
+    decode_withdraw_request(packet, msg);
+
+    // Check nonces.
+    if(!pop_nonce_pair(msg.atm_nonce, msg.bank_nonce)) {
+        error_message_t err;
+        err.error_code = REQUEST_ERROR;
+        err.error_message = "invalid nonces";
+        memcpy(err.atm_nonce, msg.atm_nonce, FIELD_SIZE);
+        memcpy(err.bank_nonce, msg.bank_nonce, FIELD_SIZE);
+        encode_error_message(response, err);
+        return;
+    }
+
+    // Check auth token.
+    std::string username;
+    if(!check_auth_token(msg.auth_token, username)) {
+        error_message_t err;
+        err.error_code = AUTH_FAILURE;
+        err.error_message = "invalid auth token";
+        memcpy(err.atm_nonce, msg.atm_nonce, FIELD_SIZE);
+        memcpy(err.bank_nonce, msg.bank_nonce, FIELD_SIZE);
+        encode_error_message(response, err);
+        return;
+    }
+
+    // TODO: actually withdraw monies and check for errors
+
+    withdraw_response_t rmsg;
+    memcpy(rmsg.atm_nonce, msg.atm_nonce, FIELD_SIZE);
+    memcpy(rmsg.bank_nonce, msg.bank_nonce, FIELD_SIZE);
+    encode_withdraw_response(response, rmsg);
 }
 
 void handle_transfer(Packet const &packet, Packet &response) {
+    transfer_request_t msg;
+    decode_transfer_request(packet, msg);
+
+    // Check nonces.
+    if(!pop_nonce_pair(msg.atm_nonce, msg.bank_nonce)) {
+        error_message_t err;
+        err.error_code = REQUEST_ERROR;
+        err.error_message = "invalid nonces";
+        memcpy(err.atm_nonce, msg.atm_nonce, FIELD_SIZE);
+        memcpy(err.bank_nonce, msg.bank_nonce, FIELD_SIZE);
+        encode_error_message(response, err);
+        return;
+    }
+
+    // Check auth token.
+    std::string username;
+    if(!check_auth_token(msg.auth_token, username)) {
+        error_message_t err;
+        err.error_code = AUTH_FAILURE;
+        err.error_message = "invalid auth token";
+        memcpy(err.atm_nonce, msg.atm_nonce, FIELD_SIZE);
+        memcpy(err.bank_nonce, msg.bank_nonce, FIELD_SIZE);
+        encode_error_message(response, err);
+        return;
+    }
+
+    // TODO: actually transfer monies and check for errors
+
+    transfer_response_t rmsg;
+    memcpy(rmsg.atm_nonce, msg.atm_nonce, FIELD_SIZE);
+    memcpy(rmsg.bank_nonce, msg.bank_nonce, FIELD_SIZE);
+    encode_transfer_response(response, rmsg);
 }
 
 void handle_invalid(Packet const &packet, Packet &response) {
+    error_message_t err;
+    err.error_code = GENERIC_ERROR;
+    err.error_message = "invalid packet";
+    encode_error_message(response, err);
+    return;
 }
 
 void handle_other(Packet const &packet, Packet &response) {
+    error_message_t err;
+    err.error_code = GENERIC_ERROR;
+    err.error_message = "unexpected message type";
+    encode_error_message(response, err);
+    return;
+}
+
+bool pop_nonce_pair(DataField const &atm_nonce, DataField const &bank_nonce) {
+    // TODO: actually write nonce pair popper
+    return false;
+}
+
+bool check_auth_token(DataField const &auth_token, std::string &username) {
+    // TODO: actually write auth token checker
+    return false;
+}
+
+unsigned int get_balance(std::string username) {
+    // TODO: actually write balance checker
+    return 42;
 }
