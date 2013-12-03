@@ -2,6 +2,14 @@
 
 ## Usage
 
+Install libraries on 64-bit Ubuntu using:
+
+    sudo apt-get install g++ g++-multilib libcrypto++-dev:i386
+
+On 32-bit Ubuntu, one can simply run:
+
+    sudo apt-get install g++ libcrypto++-dev
+
 Compile using:
 
     make
