@@ -19,6 +19,7 @@ char key[KEY_SIZE]; // shared key
 // GLOOOBAAAL STAAATE
 int sock;
 bool sock_alive;
+nonce_response_t nonces;
 
 bool check_logged_in(void);
 bool bank_login(const char *user, const char *pin);
@@ -69,6 +70,12 @@ int main(int argc, char* argv[])
 		printf("atm> ");
 		fgets(buf, 79, stdin);
 		buf[strlen(buf)-1] = '\0';	//trim off trailing newline
+
+        // Get nonces from Bank.
+        if(!get_nonces(nonces)) {
+            printf("nonce negotiation failed\n");
+            break;
+        }
 		
 		//input parsing
 		if(!strcmp(buf, "logout"))
@@ -135,13 +142,6 @@ int main(int argc, char* argv[])
             }
         }
         
-        // Get nonces from Bank.
-        nonce_response_t nonces;
-        if(!get_nonces(nonces)) {
-            printf("nonce negotiation failed\n");
-            break;
-        }
-
         Packet packet;
         // TODO: send a real request, not a null message
         // use nonces.atm_nonce and nonces.bank_nonce
