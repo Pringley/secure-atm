@@ -13,6 +13,7 @@
 #include <errno.h>
 
 #include <iostream>
+#include <fstream>
 
 #include "protocol.h"
 
@@ -168,8 +169,12 @@ bool bank_login(const char *user, const char *pin) {
     memcpy(req.atm_nonce, nonces.atm_nonce, FIELD_SIZE);
     memcpy(req.bank_nonce, nonces.bank_nonce, FIELD_SIZE);
     req.username = std::string(user);
-    req.card = "31415926545"; // TODO: actual card plz
     req.pin = std::string(pin);
+
+    // Read card from file in CWD.
+    std::fstream file((req.username + ".card").c_str());
+    file << req.card;
+    file.close();
 
     Packet packet;
     if(!encode_login_request(packet, req)) {
