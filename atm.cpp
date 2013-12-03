@@ -56,11 +56,16 @@ int main(int argc, char* argv[])
 		buf[strlen(buf)-1] = '\0';	//trim off trailing newline
 		
 		//TODO: your input parsing code has to put data here
-		Packet packet;
+
 		//input parsing
 		if(!strcmp(buf, "logout"))
 			break;
 		//TODO: other commands
+
+		Packet packet;
+        nonce_request_t nr;
+        randomize(nr.atm_nonce, FIELD_SIZE);
+        encode_nonce_request(packet, nr);
 		
 		//send the packet through the proxy to the bank
 		if(PACKET_SIZE != send(sock, (void*)packet, PACKET_SIZE, 0))
@@ -68,6 +73,7 @@ int main(int argc, char* argv[])
 			printf("fail to send packet\n");
 			break;
 		}
+        printf("We made it!\n");
 		
 		//TODO: do something with response packet
 		if(PACKET_SIZE != recv(sock, packet, PACKET_SIZE, 0))
@@ -75,6 +81,9 @@ int main(int argc, char* argv[])
 			printf("fail to read packet\n");
 			break;
 		}
+
+        int message_type = get_message_type(packet);
+        printf("Got a response! %d\n", message_type);
 	}
 	
 	//cleanup

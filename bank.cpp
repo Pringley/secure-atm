@@ -58,6 +58,8 @@ int main(int argc, char* argv[])
 	
 	//socket setup
 	int lsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    int opt = 1;
+    setsockopt(lsock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof opt);
 	if(!lsock)
 	{
 		printf("fail to create socket\n");
@@ -112,9 +114,11 @@ void* client_thread(void* arg)
 	while(1)
 	{
 		//read the packet from the ATM
+		//int n = recv(csock, packet, PACKET_SIZE, 0);
+		//if(PACKET_SIZE != n)
 		if(PACKET_SIZE != recv(csock, packet, PACKET_SIZE, 0))
 		{
-			printf("[bank] fail to read packet\n");
+            perror("[bank] fail to read packet");
 			break;
 		}
 
@@ -151,7 +155,7 @@ void* client_thread(void* arg)
         // TODO: encrypt response
 
 		//send the new packet back to the client
-		if(PACKET_SIZE != send(csock, (void*)packet, PACKET_SIZE, 0))
+		if(PACKET_SIZE != send(csock, (void*)response, PACKET_SIZE, 1))
 		{
 			printf("[bank] fail to send packet\n");
 			break;
