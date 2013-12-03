@@ -16,13 +16,17 @@
 
 char key[KEY_SIZE]; // shared key
 
+// GLOOOBAAAL STAAATE
+int sock;
+bool sock_alive;
+
 bool check_logged_in(void);
 bool bank_login(const char *user, const char *pin);
 bool bank_withdraw(unsigned int amt);
 bool bank_transfer(unsigned int amt, const char *user);
 void bank_logout(void);
 
-bool get_nonces(int sock, nonce_response_t &nonce_response);
+bool get_nonces(nonce_response_t &nonce_response);
 
 int main(int argc, char* argv[])
 {
@@ -37,7 +41,7 @@ int main(int argc, char* argv[])
 	
 	//socket setup
 	unsigned short proxport = atoi(argv[1]);
-	int sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if(!sock)
 	{
 		printf("fail to create socket\n");
@@ -56,6 +60,7 @@ int main(int argc, char* argv[])
 		printf("fail to connect to proxy\n");
 		return -1;
 	}
+    sock_alive = true;
 	
 	//input loop
 	char buf[80];
@@ -132,7 +137,7 @@ int main(int argc, char* argv[])
         
         // Get nonces from Bank.
         nonce_response_t nonces;
-        if(!get_nonces(sock, nonces)) {
+        if(!get_nonces(nonces)) {
             printf("nonce negotiation failed\n");
             break;
         }
@@ -193,7 +198,7 @@ void bank_logout(void) {
     }
 }
 
-bool get_nonces(int sock, nonce_response_t &nonce_response) {
+bool get_nonces(nonce_response_t &nonce_response) {
     Packet packet;
     nonce_request_t nr;
     randomize(nr.atm_nonce, FIELD_SIZE);
