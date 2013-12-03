@@ -30,6 +30,8 @@ int main(int argc, char* argv[])
 	
 	//socket setup
 	int lsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    int opt = 1;
+    setsockopt(lsock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof opt);
 	if(!lsock)
 	{
 		printf("fail to create socket\n");
