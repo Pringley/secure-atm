@@ -11,6 +11,7 @@
 #include <osrng.h>
 #include <hmac.h>
 #include <sha.h>
+#include <hex.h>
 
 #define KEY_SIZE (256 / 8)
 
@@ -526,6 +527,19 @@ void encrypt_packet(Packet &packet, const char *key) {
     }
 }
 
+void dump_hex(const byte *arr, size_t len)
+{
+    CryptoPP::HexEncoder enc;
+
+    enc.Put(arr, len);
+    enc.MessageEnd();
+    
+    byte ch;
+    while (enc.Get(ch))
+        putchar(ch);
+    putchar('\n');
+}
+
 bool decrypt_packet(Packet &packet, const char *key) {
     byte digest[PACKET_SIG_SIZE];
 
@@ -543,6 +557,9 @@ bool decrypt_packet(Packet &packet, const char *key) {
     HMAC_SHA512 hmac((const byte *)key, KEY_SIZE);
     hmac.Update((byte *)packet, PACKET_DATA_SIZE);
     hmac.Final(digest);
+
+    //dump_hex((byte *)packet + PACKET_SIG_POS, PACKET_SIG_SIZE);
+    //dump_hex(digest, PACKET_SIG_SIZE);
 
     // compare with decrypted HMAC
     return memcmp(digest, (byte *)packet + PACKET_SIG_POS, PACKET_SIG_SIZE);
