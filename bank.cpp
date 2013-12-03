@@ -22,6 +22,8 @@ void* console_thread(void* arg);
 /* evil global state */
 pthread_mutex_t EVIL_GLOBAL_STATE_MUTEX;
 
+char key[KEY_SIZE]; // shared key
+
 void handle_null(Packet const &packet, Packet &response);
 void handle_error(Packet const &packet, Packet &response);
 void handle_nonce(Packet const &packet, Packet &response);
@@ -50,7 +52,6 @@ int main(int argc, char* argv[])
 	unsigned short ourport = atoi(argv[1]);
 
     //crypto setup
-    char key[KEY_SIZE];
     decode_key(key);
 
     //mutex setup
@@ -120,7 +121,10 @@ void* client_thread(void* arg)
 			break;
 		}
 
-        // TODO: decrypt packet
+        if(!decrypt_packet(packet, key)) {
+            printf("unauthenticated packet! (ignoring)\n");
+            continue;
+        }
 
         Packet response;
         int message_type = get_message_type(packet);
@@ -153,7 +157,7 @@ void* client_thread(void* arg)
                 handle_other(packet, response);
         }
 
-        // TODO: encrypt response
+        encrypt_packet(response, key);
 
 		//send the new packet back to the client
 		if(PACKET_SIZE != send(csock, (void*)response, PACKET_SIZE, 0))

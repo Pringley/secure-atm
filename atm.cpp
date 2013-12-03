@@ -13,7 +13,9 @@
 
 #include "protocol.h"
 
-bool get_nonces(int sock, char *key, nonce_response_t &nonce_response);
+char key[KEY_SIZE]; // shared key
+
+bool get_nonces(int sock, nonce_response_t &nonce_response);
 
 int main(int argc, char* argv[])
 {
@@ -24,7 +26,6 @@ int main(int argc, char* argv[])
 	}
 
   //crypto setup
-  char key[KEY_SIZE];
   decode_key(key);
 	
 	//socket setup
@@ -64,7 +65,7 @@ int main(int argc, char* argv[])
         
         // Get nonces from Bank.
         nonce_response_t nonces;
-        if(!get_nonces(sock, key, nonces)) {
+        if(!get_nonces(sock, nonces)) {
             printf("nonce negotiation failed\n");
             break;
         }
@@ -74,6 +75,7 @@ int main(int argc, char* argv[])
         // use nonces.atm_nonce and nonces.bank_nonce
         encode_null_message(packet);
 		
+        encrypt_packet(packet, key);
 		//send the packet through the proxy to the bank
 		if(PACKET_SIZE != send(sock, (void*)packet, PACKET_SIZE, 0))
 		{
@@ -87,6 +89,10 @@ int main(int argc, char* argv[])
 			printf("fail to read packet\n");
 			break;
 		}
+        if(!decrypt_packet(packet, key)) {
+            printf("unauthenticated packet (ignoring)!\n");
+            continue;
+        }
         int message_type = get_message_type(packet);
         printf("Got a response! %d\n", message_type);
 	}
@@ -95,11 +101,12 @@ int main(int argc, char* argv[])
 	close(sock);
 	return 0;
 }
-bool get_nonces(int sock, char *key, nonce_response_t &nonce_response) {
+bool get_nonces(int sock, nonce_response_t &nonce_response) {
     Packet packet;
     nonce_request_t nr;
     randomize(nr.atm_nonce, FIELD_SIZE);
     encode_nonce_request(packet, nr);
+    encrypt_packet(packet, key);
     
     //send the packet through the proxy to the bank
     if(PACKET_SIZE != send(sock, (void*)packet, PACKET_SIZE, 0))
@@ -108,11 +115,17 @@ bool get_nonces(int sock, char *key, nonce_response_t &nonce_response) {
         return false;
     }
     
-    //TODO: do something with response packet
-    if(PACKET_SIZE != recv(sock, packet, PACKET_SIZE, 0))
-    {
-        printf("fail to read packet\n");
-        return false;
+    while(true) {
+        if(PACKET_SIZE != recv(sock, packet, PACKET_SIZE, 0))
+        {
+            printf("fail to read packet\n");
+            return false;
+        }
+        if(!decrypt_packet(packet, key)) {
+            printf("unauthenticated nonce packet! (ignoring)\n");
+            continue;
+        }
+        break;
     }
     int message_type = get_message_type(packet);
     if(message_type != NONCE_RESPONSE_ID) { return false; }
