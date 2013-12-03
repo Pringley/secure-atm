@@ -131,6 +131,9 @@ void* client_thread(void* arg)
             case ERROR_MESSAGE_ID:
                 handle_error(packet, response);
                 break;
+            case NONCE_REQUEST_ID:
+                handle_nonce(packet, response);
+                break;
             case LOGIN_REQUEST_ID:
                 handle_login(packet, response);
                 break;
