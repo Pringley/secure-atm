@@ -10,10 +10,17 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
 
 #include "protocol.h"
 
 char key[KEY_SIZE]; // shared key
+
+bool check_logged_in(void);
+bool bank_login(const char *user, const char *pin);
+bool bank_withdraw(unsigned int amt);
+bool bank_transfer(unsigned int amt, const char *user);
+void bank_logout(void);
 
 bool get_nonces(int sock, nonce_response_t &nonce_response);
 
@@ -61,7 +68,67 @@ int main(int argc, char* argv[])
 		//input parsing
 		if(!strcmp(buf, "logout"))
 			break;
-		//TODO: other commands
+		char *cmd = strtok(buf, " ");
+		if(!strcmp(cmd, "login")) {
+            if(check_logged_in()) {
+                printf("[atm] already logged in - logging out now\n");
+                bank_logout();
+            }
+            char *user = strtok(NULL, " ");
+            if (!user) {
+                printf("[atm] usage: login [username]\n");
+                break;
+            }
+            char *pin = getpass("PIN: ");
+            bank_login(user, pin);
+		} else if(!strcmp(cmd, "balance")) {
+            if(!check_logged_in()) {
+                printf("[atm] not logged in\n");
+                continue;
+            }
+            // TODO
+        } else if(!strcmp(cmd, "withdraw")) {
+            if(!check_logged_in()) {
+                printf("[atm] not logged in\n");
+                continue;
+            }
+            char *amt_str = strtok(NULL, " ");
+            if(!amt_str) {
+                printf("[atm] usage: withdraw [amount]\n");
+                continue;
+            }
+            errno = 0;
+            long amt = strtol(amt_str, NULL, 10);
+            if (errno || amt <= 0) {
+                printf("[atm] usage: withdraw [amount]\n");
+                continue;
+            }
+            if(!bank_withdraw(amt)) {
+                printf("[atm] unable to make withdrawal\n");
+                continue;
+            }
+        } else if(!strcmp(cmd, "transfer")) {
+            if(!check_logged_in()) {
+                printf("[atm] not logged in\n");
+                continue;
+            }
+            char *amt_str = strtok(NULL, " ");
+            char *user = strtok(NULL, " ");
+            if(!amt_str || !user) {
+                printf("[atm] usage: transfer [amount] [username]\n");
+                continue;
+            }
+            errno = 0;
+            long amt = strtol(amt_str, NULL, 10);
+            if(errno || amt <= 0) {
+                printf("[atm] usage: transfer [amount] [username]\n");
+                continue;
+            }
+            if(!bank_transfer(amt, user)) {
+                printf("[atm] unable to complete transfer\n");
+                continue;
+            }
+        }
         
         // Get nonces from Bank.
         nonce_response_t nonces;
@@ -96,11 +163,36 @@ int main(int argc, char* argv[])
         int message_type = get_message_type(packet);
         printf("Got a response! %d\n", message_type);
 	}
+
+    bank_logout();
 	
 	//cleanup
 	close(sock);
 	return 0;
 }
+
+bool check_logged_in(void) {
+    return false;
+}
+
+bool bank_login(const char *user, const char *pin) {
+    return false;
+}
+
+bool bank_withdraw(unsigned int amt) {
+    return false;
+}
+
+bool bank_transfer(unsigned int amt, const char *user) {
+    return false;
+}
+
+void bank_logout(void) {
+    if(!check_logged_in()) {
+        return;
+    }
+}
+
 bool get_nonces(int sock, nonce_response_t &nonce_response) {
     Packet packet;
     nonce_request_t nr;
