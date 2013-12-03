@@ -276,7 +276,67 @@ bool bank_withdraw(unsigned int amt) {
 }
 
 bool bank_transfer(unsigned int amt, const char *user) {
-    return false;
+    transfer_request_t req;
+    memcpy(req.atm_nonce, nonces.atm_nonce, FIELD_SIZE);
+    memcpy(req.bank_nonce, nonces.bank_nonce, FIELD_SIZE);
+    memcpy(req.auth_token, auth_token, FIELD_SIZE);
+    req.amount = amt;
+    req.destination = std::string(user);
+
+    Packet packet;
+    if(!encode_transfer_request(packet, req)) {
+        std::cerr << "Could not encode transfer request." << std::endl;
+        return false;
+    }
+
+    if(!send_recv(packet)) {
+        std::cerr << "Error transmitting transfer request." << std::endl;
+        print_transaction_cert(nonces.atm_nonce, nonces.bank_nonce);
+        return false;
+    }
+
+    int message_type = get_message_type(packet);
+    if(message_type == ERROR_MESSAGE_ID) {
+        error_message_t err;
+        decode_error_message(packet, err);
+        if(err.error_code == AUTH_FAILURE) {
+            std::cerr << "Not logged in!" << std::endl;
+            return false;
+        }
+        else if (err.error_code == INSUFFICIENT_FUNDS) {
+            std::cerr << "transfer failed" << std::endl;
+            return false;
+        }
+        else {
+            std::cerr << "transfer failed" << std::endl;
+            print_transaction_cert(nonces.atm_nonce, nonces.bank_nonce);
+            return false;
+        }
+    }
+    if(message_type != TRANSFER_RESPONSE_ID) {
+        std::cerr << "Expected TransferResponse from server." << std::endl;
+        std::cerr << "Got #" << message_type << std::endl;
+        print_transaction_cert(nonces.atm_nonce, nonces.bank_nonce);
+        return false;
+    }
+
+    transfer_response_t response;
+    if(!decode_transfer_response(packet, response)) {
+        std::cerr << "Could not decode server response." << std::endl;
+        print_transaction_cert(nonces.atm_nonce, nonces.bank_nonce);
+        return false;
+    }
+
+    if(memcmp(nonces.atm_nonce, response.atm_nonce, FIELD_SIZE) != 0 ||
+       memcmp(nonces.bank_nonce, response.bank_nonce, FIELD_SIZE) != 0) {
+        std::cerr << "Possible replay attack! Invalid response." << std::endl;
+        print_transaction_cert(nonces.atm_nonce, nonces.bank_nonce);
+        return false;
+    }
+
+    std::cout << amt << " transferred" << std::endl;
+
+    return true;
 }
 
 void bank_logout(void) {
