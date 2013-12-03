@@ -153,6 +153,9 @@ void* client_thread(void* arg)
 	int csock = (int)arg;
 	
 	printf("[bank] client ID #%d connected\n", csock);
+
+    time_t last_req, now;
+    time(&last_req);
 	
 	//input loop
 	Packet packet;
@@ -164,8 +167,9 @@ void* client_thread(void* arg)
 			printf("[bank] fail to read packet\n");
 			break;
 		}
-
+        
         Packet response;
+        bool just_nonce = false;
 
         if(!decrypt_packet(packet, key)) {
             printf("unauthenticated packet!\n");
@@ -183,6 +187,7 @@ void* client_thread(void* arg)
                     handle_error(packet, response);
                     break;
                 case NONCE_REQUEST_ID:
+                    just_nonce = true;
                     handle_nonce(packet, response);
                     break;
                 case LOGIN_REQUEST_ID:
@@ -207,12 +212,25 @@ void* client_thread(void* arg)
 
         encrypt_packet(response, key);
 
+        // Rate limit requests from each ATM individually.
+        // Hopefully prevent some enumeration attacks.
+        time(&now);
+        if(difftime(now, last_req) < 2) {
+            printf("[bank] too fast requests from single ATM\n");
+            printf("[bank] taking a quick nap...\n");
+            sleep(5);
+        }
+
 		//send the new packet back to the client
 		if(PACKET_SIZE != send(csock, (void*)response, PACKET_SIZE, 0))
 		{
 			printf("[bank] fail to send packet\n");
 			break;
 		}
+
+        if(!just_nonce) {
+            time(&last_req);
+        }
 
 	}
 
