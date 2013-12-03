@@ -28,6 +28,7 @@ bool logged_in = false;
 
 bool check_logged_in(void);
 bool bank_login(const char *user);
+bool bank_balance();
 bool bank_withdraw(unsigned int amt);
 bool bank_transfer(unsigned int amt, const char *user);
 void bank_logout(void);
@@ -105,7 +106,7 @@ int main(int argc, char* argv[])
                 printf("[atm] not logged in\n");
                 continue;
             }
-            // TODO
+            bank_balance();
         } else if(!strcmp(cmd, "withdraw")) {
             if(!check_logged_in()) {
                 printf("[atm] not logged in\n");
@@ -122,10 +123,7 @@ int main(int argc, char* argv[])
                 printf("[atm] usage: withdraw [amount]\n");
                 continue;
             }
-            if(!bank_withdraw(amt)) {
-                printf("[atm] unable to make withdrawal\n");
-                continue;
-            }
+            bank_withdraw(amt);
         } else if(!strcmp(cmd, "transfer")) {
             if(!check_logged_in()) {
                 printf("[atm] not logged in\n");
@@ -143,10 +141,7 @@ int main(int argc, char* argv[])
                 printf("[atm] usage: transfer [amount] [username]\n");
                 continue;
             }
-            if(!bank_transfer(amt, user)) {
-                printf("[atm] unable to complete transfer\n");
-                continue;
-            }
+            bank_transfer(amt, user);
         }
 
         // if the socket dun broke, exit.
@@ -236,6 +231,60 @@ bool bank_login(const char *user) {
 }
 
 void print_transaction_cert(DataField const &atm_nonce, DataField const &bank_nonce) {
+}
+
+bool bank_balance() {
+    balance_request_t req;
+    memcpy(req.atm_nonce, nonces.atm_nonce, FIELD_SIZE);
+    memcpy(req.bank_nonce, nonces.bank_nonce, FIELD_SIZE);
+    memcpy(req.auth_token, auth_token, FIELD_SIZE);
+
+    Packet packet;
+    if(!encode_balance_request(packet, req)) {
+        std::cerr << "Could not encode balance request." << std::endl;
+        return false;
+    }
+
+    if(!send_recv(packet)) {
+        std::cerr << "Error transmitting balance request." << std::endl;
+        return false;
+    }
+
+    int message_type = get_message_type(packet);
+    if(message_type == ERROR_MESSAGE_ID) {
+        error_message_t err;
+        decode_error_message(packet, err);
+        if(err.error_code == AUTH_FAILURE) {
+            std::cerr << "Not logged in!" << std::endl;
+            return false;
+        }
+        else {
+            std::cerr << "Error: " << err.error_message << std::endl;
+            print_transaction_cert(nonces.atm_nonce, nonces.bank_nonce);
+            return false;
+        }
+    }
+    if(message_type != BALANCE_RESPONSE_ID) {
+        std::cerr << "Expected BalanceResponse from server." << std::endl;
+        std::cerr << "Got #" << message_type << std::endl;
+        return false;
+    }
+
+    balance_response_t response;
+    if(!decode_balance_response(packet, response)) {
+        std::cerr << "Could not decode server response." << std::endl;
+        return false;
+    }
+
+    if(memcmp(nonces.atm_nonce, response.atm_nonce, FIELD_SIZE) != 0 ||
+       memcmp(nonces.bank_nonce, response.bank_nonce, FIELD_SIZE) != 0) {
+        std::cerr << "Possible replay attack! Invalid response." << std::endl;
+        return false;
+    }
+
+    std::cout << "Balance: " << response.balance << std::endl;
+
+    return true;
 }
 
 bool bank_withdraw(unsigned int amt) {
