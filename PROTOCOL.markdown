@@ -17,10 +17,10 @@ amongst the Bank and ATM, then transmitted.
 The first field of all packets is `MessageTypeID`, which specifies the type of
 message delivered by the packet.
 
-    +---------------+---------+---------+---------+-----+---------+
-    | MessageTypeID | Field 1 | Field 2 | Field 3 | ... | Field 7 |
-    +---------------+---------+---------+---------+-----+---------+
-     128 char        128 char  128 char  128 char   ...  128 char
+    +---------------+---------+---------+---------+-----+----------+----------+
+    | MessageTypeID | Field 1 | Field 2 | Field 3 | ... | (unused) | HMAC Sig |
+    +---------------+---------+---------+---------+-----+----------+----------+
+     128 char        128 char  128 char  128 char   ...  64 char    64 char
 
 Remember, although some descriptions and diagrams below may omit empty fields,
 **all packets are padded to 8192 bits**. Each emtpy field is filled with a null
