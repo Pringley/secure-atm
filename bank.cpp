@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <string.h>
+#include <errno.h>
 
 #include <string>
 
@@ -37,7 +38,8 @@ bool pop_nonce_pair(DataField const &atm_nonce, DataField const &bank_nonce);
 
 bool check_auth_token(DataField const &auth_token, std::string &username);
 
-unsigned int get_balance(std::string username);
+bool adjust_balance(std::string const &username, int delta);
+unsigned int get_balance(std::string const &username);
 
 int main(int argc, char* argv[])
 {
@@ -178,8 +180,35 @@ void* console_thread(void* arg)
 		printf("bank> ");
 		fgets(buf, 79, stdin);
 		buf[strlen(buf)-1] = '\0';	//trim off trailing newline
-		
-		//TODO: your input parsing code has to go here
+
+        char *cmd = strtok(buf, " ");
+        if (!strcmp(cmd, "deposit"))
+        {
+            char *user = strtok(NULL, " ");
+            char *amt_str = strtok(NULL, " ");
+            if (!user || !amt_str) {
+                printf("[bank] usage: deposit [username] [amount]\n");
+                continue;
+            }
+            errno = 0;
+            long amt = strtol(amt_str, NULL, 10);
+            if (errno) {
+                printf("[bank] usage: deposit [username] [amount]\n");
+                continue;
+            }
+            if (!adjust_balance(user, amt)) {
+                printf("[bank] unable to make deposit\n");
+                continue;
+            }
+        }
+        else if (!strcmp(cmd, "balance"))
+        {
+            char *user = strtok(NULL, " ");
+            if (!user) {
+                printf("[bank] usage: balance [username]");
+                continue;
+            }
+        }
 	}
 }
 
@@ -379,7 +408,12 @@ bool check_auth_token(DataField const &auth_token, std::string &username) {
     return false;
 }
 
-unsigned int get_balance(std::string username) {
+bool adjust_balance(std::string const &username, int delta) {
+    // TODO: actually write balance adjuster
+    return true;
+}
+
+unsigned int get_balance(std::string const &username) {
     // TODO: actually write balance checker
     return 42;
 }
