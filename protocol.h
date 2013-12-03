@@ -1,13 +1,25 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
+#include <cassert>
 #include <cstring>
 #include <string>
 #include <sstream>
+// Crypto++ headers
+#include <base64.h>
+#include <aes.h>
+#include <osrng.h>
+#include <hmac.h>
+#include <sha.h>
+
+#define KEY_SIZE (256 / 8)
 
 #define PACKET_SIZE 1024
 #define FIELD_SIZE  128
 #define FIELDS 8
+#define PACKET_SIG_SIZE  (512 / 8)
+#define PACKET_DATA_SIZE (PACKET_SIZE - PACKET_SIG_SIZE)
+#define PACKET_SIG_POS   PACKET_DATA_SIZE
 
 #define INVALID_MESSAGE_TYPE -2
 #define NULL_MESSAGE_ID 0
@@ -129,8 +141,8 @@ bool decode_withdraw_response(Packet const &packet, withdraw_response_t &msg);
 bool decode_transfer_response(Packet const &packet, transfer_response_t &msg);
 
 // PUBLIC -- encryption wrappers
-void encrypt_packet(Packet &packet);
-void decrypt_packet(Packet &packet);
+void encrypt_packet(Packet &packet, const char *key);
+bool decrypt_packet(Packet &packet, const char *key);
 void randomize(char *destination, size_t amount);
 
 /********************
@@ -479,16 +491,67 @@ bool field_to_string(const char *field, std::string &string) {
     return field[field_size] == '\0';
 }
 
-// stub (should use #define'd 256-bit secret)
-void encrypt_packet(Packet &packet) {
+void decode_key(char *dest) {
+    CryptoPP::Base64Decoder dec;
+
+    // PRIVATE_SHARED_KEY_BASE64 is #define'd via the command line
+    const char *base64 = PRIVATE_SHARED_KEY_BASE64;
+
+    while (*base64)
+        dec.Put(*(base64++));
+    dec.MessageEnd();
+
+    // TODO: ensure no buffer overflows
+    while (dec.Get(*(byte *)dest))
+        dest++;
 }
 
-// stub (should use #define'd 256-bit secret)
-void decrypt_packet(Packet &packet) {
+typedef CryptoPP::HMAC<CryptoPP::SHA512> HMAC_SHA512;
+
+void encrypt_packet(Packet &packet, const char *key) {
+
+    // generate HMAC in end of packet
+    HMAC_SHA512 hmac((const byte *)key, KEY_SIZE);
+    hmac.Update((byte *)packet, PACKET_DATA_SIZE);
+    hmac.Final((byte *)packet + PACKET_SIG_POS);
+
+    // encrypt the whole packet
+    byte *ptr = (byte *)packet;
+    CryptoPP::AES::Encryption enc((const byte *)key, KEY_SIZE);
+
+    assert(PACKET_SIZE / enc.BlockSize() == 0);
+    for (unsigned i = 0; i < PACKET_SIZE; i += enc.BlockSize()) {
+        enc.ProcessBlock(ptr);
+        ptr += enc.BlockSize();
+    }
 }
 
-// stub
+bool decrypt_packet(Packet &packet, const char *key) {
+    byte digest[PACKET_SIG_SIZE];
+
+    // decrypt whole packet
+    byte *ptr = (byte *)packet;
+    CryptoPP::AES::Decryption dec((const byte *)key, KEY_SIZE);
+
+    assert(PACKET_SIZE / dec.BlockSize() == 0);
+    for (unsigned i = 0; i < PACKET_SIZE; i += dec.BlockSize()) {
+        dec.ProcessBlock(ptr);
+        ptr += dec.BlockSize();
+    }
+
+    // generate HMAC of packet
+    HMAC_SHA512 hmac((const byte *)key, KEY_SIZE);
+    hmac.Update((byte *)packet, PACKET_DATA_SIZE);
+    hmac.Final(digest);
+
+    // compare with decrypted HMAC
+    return memcmp(digest, (byte *)packet + PACKET_SIG_POS, PACKET_SIG_SIZE);
+}
+
 void randomize(char *destination, size_t amount) {
+    static CryptoPP::AutoSeededRandomPool rng;
+
+    rng.GenerateBlock((byte *)destination, amount);
 }
 
 #endif
