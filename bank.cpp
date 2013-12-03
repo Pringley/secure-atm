@@ -153,7 +153,7 @@ void* client_thread(void* arg)
         // TODO: encrypt response
 
 		//send the new packet back to the client
-		if(PACKET_SIZE != send(csock, (void*)packet, PACKET_SIZE, 0))
+		if(PACKET_SIZE != send(csock, (void*)response, PACKET_SIZE, 0))
 		{
 			printf("[bank] fail to send packet\n");
 			break;
