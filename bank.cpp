@@ -230,6 +230,9 @@ void* console_thread(void* arg)
 		buf[strlen(buf)-1] = '\0';	//trim off trailing newline
 
         char *cmd = strtok(buf, " ");
+        if (!cmd) {
+            continue;
+        }
         if (!strcmp(cmd, "deposit"))
         {
             char *user = strtok(NULL, " ");
