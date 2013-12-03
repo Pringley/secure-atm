@@ -146,40 +146,44 @@ void* client_thread(void* arg)
 			break;
 		}
 
-        if(!decrypt_packet(packet, key)) {
-            printf("unauthenticated packet! (ignoring)\n");
-            continue;
-        }
-
         Packet response;
-        int message_type = get_message_type(packet);
-        switch(message_type) {
-            case NULL_MESSAGE_ID:
-                handle_null(packet, response);
-                break;
-            case ERROR_MESSAGE_ID:
-                handle_error(packet, response);
-                break;
-            case NONCE_REQUEST_ID:
-                handle_nonce(packet, response);
-                break;
-            case LOGIN_REQUEST_ID:
-                handle_login(packet, response);
-                break;
-            case BALANCE_REQUEST_ID:
-                handle_balance(packet, response);
-                break;
-            case WITHDRAW_REQUEST_ID:
-                handle_withdraw(packet, response);
-                break;
-            case TRANSFER_REQUEST_ID:
-                handle_transfer(packet, response);
-                break;
-            case INVALID_MESSAGE_TYPE:
-                handle_invalid(packet, response);
-                break;
-            default:
-                handle_other(packet, response);
+
+        if(!decrypt_packet(packet, key)) {
+            printf("unauthenticated packet!\n");
+            error_message_t err;
+            err.error_code = GENERIC_ERROR;
+            err.error_message = "packet failed to authenticate";
+            encode_error_message(response, err);
+        } else {
+            int message_type = get_message_type(packet);
+            switch(message_type) {
+                case NULL_MESSAGE_ID:
+                    handle_null(packet, response);
+                    break;
+                case ERROR_MESSAGE_ID:
+                    handle_error(packet, response);
+                    break;
+                case NONCE_REQUEST_ID:
+                    handle_nonce(packet, response);
+                    break;
+                case LOGIN_REQUEST_ID:
+                    handle_login(packet, response);
+                    break;
+                case BALANCE_REQUEST_ID:
+                    handle_balance(packet, response);
+                    break;
+                case WITHDRAW_REQUEST_ID:
+                    handle_withdraw(packet, response);
+                    break;
+                case TRANSFER_REQUEST_ID:
+                    handle_transfer(packet, response);
+                    break;
+                case INVALID_MESSAGE_TYPE:
+                    handle_invalid(packet, response);
+                    break;
+                default:
+                    handle_other(packet, response);
+            }
         }
 
         encrypt_packet(response, key);
