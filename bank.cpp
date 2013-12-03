@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <map>
 
 #include "protocol.h"
 
@@ -39,6 +40,13 @@ struct AuthInfo {
     time_t created;
 };
 std::vector<AuthInfo> valid_auth_info;
+
+struct UserInfo {
+    std::string username;
+    std::string pin;
+    unsigned int balance;
+};
+std::map<std::string, UserInfo> all_users;
 
 char key[KEY_SIZE]; // shared key
 
@@ -63,6 +71,10 @@ void store_auth_token(DataField const &auth_token, std::string const &username);
 
 bool check_user_exists(std::string const &username);
 
+void add_user(std::string const &username, unsigned int balance);
+bool get_user(UserInfo *dest, std::string const &username);
+
+bool transfer_funds(std::string const &from, std::string const &to, unsigned int amt);
 bool adjust_balance(std::string const &username, int delta);
 unsigned int get_balance(std::string const &username);
 
@@ -78,6 +90,11 @@ int main(int argc, char* argv[])
 
     //crypto setup
     decode_key(key);
+
+    //user setup
+    add_user("Alice", 100);
+    add_user("Bob", 50);
+    add_user("Eve", 0);
 
     //mutex setup
     pthread_mutex_init(&EVIL_GLOBAL_STATE_MUTEX, NULL);
@@ -294,9 +311,15 @@ void handle_login(Packet const &packet, Packet &response) {
         return;
     }
 
-    bool verified = true;
-    // TODO: actually verify the user's credentials
+    bool verified = false;
     // msg.username msg.card msg.pin
+    UserInfo info;
+    if(get_user(&info, msg.username)) {
+        // TODO: check card info
+        if(msg.pin == info.pin) {
+            verified = true;
+        }
+    }
 
     // Send error if verify fails.
     if(!verified) {
@@ -383,7 +406,17 @@ void handle_withdraw(Packet const &packet, Packet &response) {
         return;
     }
 
-    // TODO: actually withdraw monies and check for errors
+    // Withdraw amount.
+    bool res = adjust_balance(username, -msg.amount);
+    if(!res) {
+        error_message_t err;
+        err.error_code = INSUFFICIENT_FUNDS;
+        err.error_message = "insufficient funds";
+        memcpy(err.atm_nonce, msg.atm_nonce, FIELD_SIZE);
+        memcpy(err.bank_nonce, msg.bank_nonce, FIELD_SIZE);
+        encode_error_message(response, err);
+        return;
+    }
 
     withdraw_response_t rmsg;
     memcpy(rmsg.atm_nonce, msg.atm_nonce, FIELD_SIZE);
@@ -418,7 +451,17 @@ void handle_transfer(Packet const &packet, Packet &response) {
         return;
     }
 
-    // TODO: actually transfer monies and check for errors
+    // Perform actual transfer.
+    bool res = transfer_funds(username, msg.destination, msg.amount);
+    if(!res) {
+        error_message_t err;
+        err.error_code = INSUFFICIENT_FUNDS;
+        err.error_message = "insufficient funds";
+        memcpy(err.atm_nonce, msg.atm_nonce, FIELD_SIZE);
+        memcpy(err.bank_nonce, msg.bank_nonce, FIELD_SIZE);
+        encode_error_message(response, err);
+        return;
+    }
 
     transfer_response_t rmsg;
     memcpy(rmsg.atm_nonce, msg.atm_nonce, FIELD_SIZE);
@@ -517,17 +560,84 @@ void store_auth_token(DataField const &auth_token, std::string const &username) 
     pthread_mutex_unlock(&EVIL_GLOBAL_STATE_MUTEX);
 }
 
-bool check_user_exists(std::string const &username) {
-    // NOBODY EXISTS MUAHAHAH
-    return false;
+void add_user(std::string const &username, unsigned int balance) {
+    UserInfo info;
+
+    info.username = username;
+    info.pin = "deadbeef";
+    info.balance = balance;
+
+    all_users[username] = info;
 }
 
-bool adjust_balance(std::string const &username, int delta) {
-    // TODO: actually write balance adjuster
+bool get_user(UserInfo *dest, std::string const &username) {
+    std::map<std::string, UserInfo>::const_iterator it = all_users.find(username);
+    if (it == all_users.end())
+        return false;
+
+    if (dest)
+        *dest = it->second;
     return true;
 }
 
+bool check_user_exists(std::string const &username) {
+    return get_user(NULL, username);
+}
+
+bool adjust_balance_impl(std::string const &username, int delta) {
+    UserInfo info;
+
+    if (!get_user(&info, username)) {
+        return false;
+    }
+
+    if (delta < 0 && info.balance < -delta) {
+        return false;
+    }
+
+    if (delta > 0 && (long long)delta + (long long)info.balance > (long long)UINT_MAX) {
+        return false;
+    }
+
+    info.balance += delta;
+    all_users[username] = info;
+    return true;
+}
+
+bool transfer_funds(std::string const &from, std::string const &to, unsigned int amt) {
+    pthread_mutex_lock(&EVIL_GLOBAL_STATE_MUTEX);
+
+    bool res = false;
+    if(adjust_balance_impl(from, -amt)) {
+        if(adjust_balance_impl(to, amt)) {
+            res = true;
+        } else {
+            // undo previous withdrawal
+            adjust_balance_impl(from, amt);
+        }
+    }
+
+    pthread_mutex_unlock(&EVIL_GLOBAL_STATE_MUTEX);
+
+    return true;
+}
+
+bool adjust_balance(std::string const &username, int delta) {
+	pthread_mutex_lock(&EVIL_GLOBAL_STATE_MUTEX);
+
+	bool res = adjust_balance_impl(username, delta);
+
+	pthread_mutex_unlock(&EVIL_GLOBAL_STATE_MUTEX);
+
+	return res;
+}
+
 unsigned int get_balance(std::string const &username) {
-    // TODO: actually write balance checker
-    return 42;
+    UserInfo info;
+
+    if (!get_user(&info, username)) {
+        return false;
+    }
+
+    return info.balance;
 }
