@@ -40,21 +40,25 @@ types.
     +------+------------------+
     |  -1  | ErrorMessage     |
     +------+------------------+
-    |   1  | LoginRequest     |
+    |   1  | NonceRequest     |
     +------+------------------+
-    |   2  | BalanceRequest   |
+    |   2  | LoginRequest     |
     +------+------------------+
-    |   3  | WithdrawRequest  |
+    |   3  | BalanceRequest   |
     +------+------------------+
-    |   4  | TransferRequest  |
+    |   4  | WithdrawRequest  |
     +------+------------------+
-    |  51  | LoginResponse    |
+    |   5  | TransferRequest  |
     +------+------------------+
-    |  52  | BalanceResponse  |
+    |  51  | NonceResponse    |
     +------+------------------+
-    |  53  | WithdrawResponse |
+    |  52  | LoginResponse    |
     +------+------------------+
-    |  54  | TransferResponse |
+    |  53  | BalanceResponse  |
+    +------+------------------+
+    |  54  | WithdrawResponse |
+    +------+------------------+
+    |  55  | TransferResponse |
     +------+------------------+
 
 ## `NullMessage`

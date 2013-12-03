@@ -12,14 +12,16 @@
 #define INVALID_MESSAGE_TYPE -2
 #define NULL_MESSAGE_ID 0
 #define ERROR_MESSAGE_ID -1
-#define LOGIN_REQUEST_ID 1
-#define BALANCE_REQUEST_ID 2
-#define WITHDRAW_REQUEST_ID 3
-#define TRANSFER_REQUEST_ID 4
-#define LOGIN_RESPONSE_ID 51
-#define BALANCE_RESPONSE_ID 52
-#define WITHDRAW_RESPONSE_ID 53
-#define TRANSFER_RESPONSE_ID 54
+#define NONCE_REQUEST_ID 1
+#define LOGIN_REQUEST_ID 2
+#define BALANCE_REQUEST_ID 3
+#define WITHDRAW_REQUEST_ID 4
+#define TRANSFER_REQUEST_ID 5
+#define NONCE_RESPONSE_ID 51
+#define LOGIN_RESPONSE_ID 52
+#define BALANCE_RESPONSE_ID 53
+#define WITHDRAW_RESPONSE_ID 54
+#define TRANSFER_RESPONSE_ID 55
 
 #define GENERIC_ERROR 0
 #define REQUEST_ERROR 1
@@ -27,8 +29,8 @@
 #define AUTH_FAILURE 3
 #define INSUFFICIENT_FUNDS 4
 
-int valid_message_types[] = {0, -1, 1, 2, 3, 4, 51, 52, 53, 54};
-int valid_message_types_size = 10;
+int valid_message_types[] = {0, -1, 1, 2, 3, 4, 5, 51, 52, 53, 54, 55};
+int valid_message_types_size = 12;
 int valid_error_types[] = {0, 1, 2, 3, 4};
 int valid_error_types_size = 5;
 
@@ -101,6 +103,7 @@ struct transfer_response_t {
 // PUBLIC -- encoder functions
 bool encode_null_message(Packet &packet);
 bool encode_error_message(Packet &packet, const error_message_t &msg);
+bool encode_nonce_request(Packet &packet, const nonce_request_t &msg);
 bool encode_login_request(Packet &packet, const login_request_t &msg);
 bool encode_balance_request(Packet &packet, const balance_request_t &msg);
 bool encode_withdraw_request(Packet &packet, const withdraw_request_t &msg);
@@ -115,6 +118,7 @@ int get_message_type(Packet const &packet);
 
 // PUBLIC -- decoder functions
 bool decode_error_message(Packet const &packet, error_message_t &msg);
+bool decode_nonce_request(Packet const &packet, nonce_request_t &msg);
 bool decode_login_request(Packet const &packet, login_request_t &msg);
 bool decode_balance_request(Packet const &packet, balance_request_t &msg);
 bool decode_withdraw_request(Packet const &packet, withdraw_request_t &msg);
@@ -184,6 +188,19 @@ bool decode_error_message(Packet const &packet, error_message_t &msg) {
     if(!get_str_field(packet, 2, msg.error_message)) { return false; }
     if(!get_dat_field(packet, 3, msg.atm_nonce)) { return false; }
     if(!get_dat_field(packet, 4, msg.bank_nonce)) { return false; }
+    return true;
+}
+
+bool encode_nonce_request(Packet &packet, const nonce_request_t &msg) {
+    if(!set_int_field(packet, 0, NONCE_REQUEST_ID)) { return false; }
+    if(!set_dat_field(packet, 1, msg.atm_nonce)) { return false; }
+    randomize_remaining_fields(packet, 2);
+    return true;
+}
+
+bool decode_nonce_request(Packet const &packet, nonce_request_t &msg) {
+    if(!validate_message_type(packet, NONCE_REQUEST_ID)) { return false; }
+    if(!get_dat_field(packet, 1, msg.atm_nonce)) { return false; }
     return true;
 }
 
@@ -264,6 +281,22 @@ bool decode_transfer_request(Packet const &packet, transfer_request_t &msg) {
     if(!get_unsigned_int_field(packet, 5, msg.amount)) { return false; }
     return true;
 }
+
+bool encode_nonce_response(Packet &packet, const nonce_response_t &msg) {
+    if(!set_int_field(packet, 0, NONCE_RESPONSE_ID)) { return false; }
+    if(!set_dat_field(packet, 1, msg.atm_nonce)) { return false; }
+    if(!set_dat_field(packet, 2, msg.bank_nonce)) { return false; }
+    randomize_remaining_fields(packet, 3);
+    return true;
+}
+
+bool decode_nonce_response(Packet const &packet, nonce_response_t &msg) {
+    if(!validate_message_type(packet, NONCE_RESPONSE_ID)) { return false; }
+    if(!get_dat_field(packet, 1, msg.atm_nonce)) { return false; }
+    if(!get_dat_field(packet, 2, msg.bank_nonce)) { return false; }
+    return true;
+}
+
 
 bool encode_login_response(Packet &packet, const login_response_t &msg) {
     if(!set_int_field(packet, 0, LOGIN_RESPONSE_ID)) { return false; }

@@ -80,6 +80,19 @@ void test_withdraw_request() {
     assert(msg.amount == dec.amount);
 }
 
+void test_nonce_request() {
+    nonce_request_t msg;
+    msg.atm_nonce[12] = 'z';
+    int rc;
+    Packet packet;
+    rc = encode_nonce_request(packet, msg);
+    assert(rc);
+    nonce_request_t dec;
+    rc = decode_nonce_request(packet, dec);
+    assert(rc);
+    assert(memcmp(msg.atm_nonce, dec.atm_nonce, FIELD_SIZE) == 0);
+}
+
 void test_transfer_request() {
     transfer_request_t msg;
     msg.atm_nonce[12] = 'z';
@@ -166,6 +179,22 @@ void test_transfer_response() {
     assert(memcmp(msg.bank_nonce, dec.bank_nonce, FIELD_SIZE) == 0);
 }
 
+void test_nonce_response() {
+    nonce_response_t msg;
+    msg.atm_nonce[12] = 'z';
+    msg.bank_nonce[7] = 'f';
+    int rc;
+    Packet packet;
+    rc = encode_nonce_response(packet, msg);
+    assert(rc);
+    nonce_response_t dec;
+    rc = decode_nonce_response(packet, dec);
+    assert(rc);
+    assert(memcmp(msg.atm_nonce, dec.atm_nonce, FIELD_SIZE) == 0);
+    assert(memcmp(msg.bank_nonce, dec.bank_nonce, FIELD_SIZE) == 0);
+}
+
+
 void test_packet_access() {
     int rc;
     Packet packet;
@@ -231,10 +260,12 @@ void test_int_field() {
 int main(int argc, const char *argv[]) {
     test_int_field();
     test_packet_access();
+    test_nonce_request();
     test_login_request();
     test_balance_request();
     test_withdraw_request();
     test_transfer_request();
+    test_nonce_response();
     test_login_response();
     test_balance_response();
     test_withdraw_response();
