@@ -20,6 +20,8 @@ char key[KEY_SIZE]; // shared key
 int sock;
 bool sock_alive;
 nonce_response_t nonces;
+DataField auth_token;
+bool logged_in = false;
 
 bool check_logged_in(void);
 bool bank_login(const char *user, const char *pin);
@@ -177,7 +179,7 @@ int main(int argc, char* argv[])
 }
 
 bool check_logged_in(void) {
-    return false;
+    return logged_in;
 }
 
 bool bank_login(const char *user, const char *pin) {
@@ -193,9 +195,8 @@ bool bank_transfer(unsigned int amt, const char *user) {
 }
 
 void bank_logout(void) {
-    if(!check_logged_in()) {
-        return;
-    }
+    // no notion of "logout" unfortunately
+    return;
 }
 
 bool get_nonces(nonce_response_t &nonce_response) {
