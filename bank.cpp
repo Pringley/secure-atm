@@ -20,6 +20,16 @@ void* console_thread(void* arg);
 /* evil global state */
 pthread_mutex_t EVIL_GLOBAL_STATE_MUTEX;
 
+void handle_null(Packet const &packet, Packet &response);
+void handle_error(Packet const &packet, Packet &response);
+void handle_nonce(Packet const &packet, Packet &response);
+void handle_login(Packet const &packet, Packet &response);
+void handle_balance(Packet const &packet, Packet &response);
+void handle_withdraw(Packet const &packet, Packet &response);
+void handle_transfer(Packet const &packet, Packet &response);
+void handle_invalid(Packet const &packet, Packet &response);
+void handle_other(Packet const &packet, Packet &response);
+
 int main(int argc, char* argv[])
 {
 	if(argc != 2)
@@ -94,11 +104,39 @@ void* client_thread(void* arg)
 			printf("[bank] fail to read packet\n");
 			break;
 		}
-		
-		//TODO: process packet data
-		
-		//TODO: put new data in packet
-		
+
+        // TODO: decrypt packet
+
+        Packet response;
+        int message_type = get_message_type(packet);
+        switch(message_type) {
+            case NULL_MESSAGE_ID:
+                handle_null(packet, response);
+                break;
+            case ERROR_MESSAGE_ID:
+                handle_error(packet, response);
+                break;
+            case LOGIN_REQUEST_ID:
+                handle_login(packet, response);
+                break;
+            case BALANCE_REQUEST_ID:
+                handle_balance(packet, response);
+                break;
+            case WITHDRAW_REQUEST_ID:
+                handle_withdraw(packet, response);
+                break;
+            case TRANSFER_REQUEST_ID:
+                handle_transfer(packet, response);
+                break;
+            case INVALID_MESSAGE_TYPE:
+                handle_invalid(packet, response);
+                break;
+            default:
+                handle_other(packet, response);
+        }
+
+        // TODO: encrypt response
+
 		//send the new packet back to the client
 		if(PACKET_SIZE != send(csock, (void*)packet, PACKET_SIZE, 0))
 		{
@@ -125,4 +163,31 @@ void* console_thread(void* arg)
 		
 		//TODO: your input parsing code has to go here
 	}
+}
+
+void handle_null(Packet const &packet, Packet &response) {
+}
+
+void handle_error(Packet const &packet, Packet &response) {
+}
+
+void handle_nonce(Packet const &packet, Packet &response) {
+}
+
+void handle_login(Packet const &packet, Packet &response) {
+}
+
+void handle_balance(Packet const &packet, Packet &response) {
+}
+
+void handle_withdraw(Packet const &packet, Packet &response) {
+}
+
+void handle_transfer(Packet const &packet, Packet &response) {
+}
+
+void handle_invalid(Packet const &packet, Packet &response) {
+}
+
+void handle_other(Packet const &packet, Packet &response) {
 }
