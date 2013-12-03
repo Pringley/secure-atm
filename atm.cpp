@@ -12,6 +12,8 @@
 #include <string.h>
 #include <errno.h>
 
+#include <iostream>
+
 #include "protocol.h"
 
 char key[KEY_SIZE]; // shared key
@@ -77,8 +79,8 @@ int main(int argc, char* argv[])
 
         // Get nonces from Bank.
         if(!get_nonces(nonces)) {
-            printf("nonce negotiation failed\n");
-            break;
+            printf("nonce negotiation failed -- try again please\n");
+            continue;
         }
 		
 		//input parsing
@@ -93,7 +95,7 @@ int main(int argc, char* argv[])
             char *user = strtok(NULL, " ");
             if (!user) {
                 printf("[atm] usage: login [username]\n");
-                break;
+                continue;
             }
             char *pin = getpass("PIN: ");
             bank_login(user, pin);
@@ -145,6 +147,9 @@ int main(int argc, char* argv[])
                 continue;
             }
         }
+
+        // if the socket dun broke, exit.
+        if(!sock_alive) { break; }
 	}
 
     bank_logout();
@@ -181,17 +186,13 @@ bool get_nonces(nonce_response_t &nonce_response) {
     randomize(nr.atm_nonce, FIELD_SIZE);
     encode_nonce_request(packet, nr);
     
-    //send the packet through the proxy to the bank
-    if(PACKET_SIZE != send(sock, (void*)packet, PACKET_SIZE, 0))
-    {
-        printf("fail to send packet\n");
-        return false;
-    }
-    
     if(!send_recv(packet)) { return false; }
 
     int message_type = get_message_type(packet);
-    if(message_type != NONCE_RESPONSE_ID) { return false; }
+    if(message_type != NONCE_RESPONSE_ID) {
+        printf("received non-nonce packet in response to nonce -- request failed\n");
+        return false;
+    }
     if(!decode_nonce_response(packet, nonce_response)) { return false; }
     return true;
 }
@@ -201,15 +202,29 @@ bool send_recv(Packet &packet) {
     if(PACKET_SIZE != send(sock, (void*)packet, PACKET_SIZE, 0))
     {
         printf("fail to send packet\n");
+        sock_alive = false;
         return false;
     }
     if(PACKET_SIZE != recv(sock, packet, PACKET_SIZE, 0))
     {
         printf("fail to read packet\n");
+        sock_alive = false;
         return false;
     }
     if(!decrypt_packet(packet, key)) {
         printf("rejecting unauthenticated packet\n");
+        return false;
+    }
+    int message_type = get_message_type(packet);
+    if(message_type == INVALID_MESSAGE_TYPE) {
+        printf("invalid message type received\n");
+        return false;
+    }
+    if(message_type == ERROR_MESSAGE_ID) {
+        error_message_t err;
+        decode_error_message(packet, err);
+        std::cout << "server error " << err.error_code
+                  << ": " << err.error_message << std::endl;
         return false;
     }
     return true;
