@@ -49,6 +49,10 @@ int main(int argc, char* argv[])
 	
 	unsigned short ourport = atoi(argv[1]);
 
+    //crypto setup
+    char key[KEY_SIZE];
+    decode_key(key);
+
     //mutex setup
     pthread_mutex_init(&EVIL_GLOBAL_STATE_MUTEX, NULL);
 	

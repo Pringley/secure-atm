@@ -20,6 +20,10 @@ int main(int argc, char* argv[])
 		printf("Usage: atm proxy-port\n");
 		return -1;
 	}
+
+  //crypto setup
+  char key[KEY_SIZE];
+  decode_key(key);
 	
 	//socket setup
 	unsigned short proxport = atoi(argv[1]);
