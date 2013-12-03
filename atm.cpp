@@ -20,6 +20,10 @@ int main(int argc, char* argv[])
 		printf("Usage: atm proxy-port\n");
 		return -1;
 	}
+
+  //crypto setup
+  char key[KEY_SIZE];
+  decode_key(key);
 	
 	//socket setup
 	unsigned short proxport = atoi(argv[1]);
@@ -53,37 +57,20 @@ int main(int argc, char* argv[])
 		
 		//TODO: your input parsing code has to put data here
 		Packet packet;
-		int length = 1;
-		
 		//input parsing
 		if(!strcmp(buf, "logout"))
 			break;
 		//TODO: other commands
 		
 		//send the packet through the proxy to the bank
-		if(sizeof(int) != send(sock, &length, sizeof(int), 0))
-		{
-			printf("fail to send packet length\n");
-			break;
-		}
-		if(length != send(sock, (void*)packet, length, 0))
+		if(PACKET_SIZE != send(sock, (void*)packet, PACKET_SIZE, 0))
 		{
 			printf("fail to send packet\n");
 			break;
 		}
 		
 		//TODO: do something with response packet
-		if(sizeof(int) != recv(sock, &length, sizeof(int), 0))
-		{
-			printf("fail to read packet length\n");
-			break;
-		}
-		if(length >= PACKET_SIZE)
-		{
-			printf("packet too long\n");
-			break;
-		}
-		if(length != recv(sock, packet, length, 0))
+		if(PACKET_SIZE != recv(sock, packet, PACKET_SIZE, 0))
 		{
 			printf("fail to read packet\n");
 			break;
