@@ -3,32 +3,45 @@ This is an overview of the secure ATM protocol.
 The design is focused entirely on security and simplicity and the expense of
 performance.
 
-# Messages
+The Bank and all ATMs share a single 256-bit key, used for both encryption and
+HMACs.
 
-A Message is sent in a single packet of exactly 8192 bits. It contains eight
+# Message packets
+
+A Message is sent in a single packet of exactly 8192 bits. It contains seven
 ASCII-encoded 128-character string fields. All fields are padded to *exactly*
 128 bytes by appending a null character followed by random bytes. Empty or
 unused fields are also filled by an initial null character followed by random
 bytes.
 
-The entire packet is encrypted with AES in CBC mode using a 256-bit shared key
-amongst the Bank and ATM, then transmitted.
-
-The first field of all packets is `MessageTypeID`, which specifies the type of
+The zero-field of all packets is `MessageTypeID`, which specifies the type of
 message delivered by the packet.
 
-    +---------------+---------+---------+---------+-----+----------+----------+
-    | MessageTypeID | Field 1 | Field 2 | Field 3 | ... | (unused) | HMAC Sig |
-    +---------------+---------+---------+---------+-----+----------+----------+
-     128 char        128 char  128 char  128 char   ...  64 char    64 char
+    +---------------+---------+---------+-----+---------+
+    | MessageTypeID | Field 1 | Field 2 | ... | Field 6 |
+    +---------------+---------+---------+-----+---------+
+     128 char        128 char  128 char  ...   128 char
+
+While first 896 bytes the actual message and fields, followed by a 512-bit SHA2
+HMAC of those 896 bytes.
+
+    +---------------------------------------------------+---------+
+    | Cleartext message                                 | HMAC    |
+    +---------------------------------------------------+---------+
+     896 bytes                                           64 bytes
+
+The entire packet is then encrypted with AES in CBC mode.
+
+    +-------------------------------------------------------------+--------+
+    | *********************************************************** | AES IV |
+    +-------------------------------------------------------------+--------+
+     960 bytes                                                     16 bytes
+
+(The last 48 bytes are undefined and can be filled with any noise.)
 
 Remember, although some descriptions and diagrams below may omit empty fields,
-**all packets are padded to 8192 bits**. Each emtpy field is filled with a null
+**all packets are padded to 8192 bits**. Each empty field is filled with a null
 byte followed by random bytes. This prevents some forms of traffic analysis.
-
-Packets are queued by both the ATM and Bank such that each sends exactly one
-message every second. That is, both the Bank and ATM send one (and only one)
-message each second. If the message queue is empty, send a NullMessage.
 
 The following table shows `MessageTypeID`s and their corresponding message
 types.
@@ -67,11 +80,8 @@ types.
     |  0 |
     +----+
 
-Since the Bank and ATM both need to send exactly one message per second, they
-use `NullMessage` when they have no actual data queued for sending. Since even
-`NullMessage`s are encrypted, and the empty fields are each filled with a null
-byte followed by random bytes, each `NullMessage` is unique and should be
-indistinguishable from other encrypted messages.
+This message exists so the Bank can always send a reply, even if none is
+needed, possibly preventing some information leak if there were a no-response.
 
 ## `ErrorMessage`
 
@@ -203,14 +213,14 @@ If the ATM receives a `WithdrawResponse` with correct nonces, it vends the
 amount specified; if it receives an `ErrorMessage` with the correct nonces, it
 tells the user to try again.
 
-If the ATM does not receive a `WithdrawResponse` *or* an `ErrorMessage` within
-30 seconds, it does **not** vend cash and instead tells the user there has been
-a communication error and the ATM cannot verify if their account has been
-debited.  The ATM also provides the user with a timestamped SHA512 HMAC of the
-transaction (including nonces). The user can take this to a Bank office, where
-an employee can then verify the HMAC against the Bank's transaction log and
-give the user his or her cash. (The employee then transmits the HMAC to all
-other employees so a malicious user can't reuse it.)
+If the ATM does not receive a `WithdrawResponse` *or* an `ErrorMessage`, it
+does **not** vend cash and instead tells the user there has been a
+communication error and the ATM cannot verify if their account has been
+debited.  The ATM also provides the user with a SHA512 HMAC of the transaction
+nonces. The user can take this to a Bank office, where an employee can then
+verify the HMAC against the Bank's transaction log and give the user his or her
+cash. (The employee then transmits the HMAC to all other employees so a
+malicious user can't reuse it.)
 
 ## `TransferRequest` and `TransferResponse`
 
@@ -249,8 +259,8 @@ If the ATM receives a `TransferResponse` with correct nonces, it prints a
 success message; if it receives an `ErrorMessage` with the correct nonces, it
 tells the user to try again.
 
-If the ATM does not receive a `TransferResponse` *or* an `ErrorMessage` within
-30 seconds, it tells the user there was a communication error and it cannot
-determine if the transfer completed or not. It may suggest the user check his
-or her balance to determine if the transfer went through.  (Transfers are
-atomic, so if the user's balance is reduced, the transfer was successful.)
+If the ATM does not receive a `TransferResponse` *or* an `ErrorMessage`, it
+tells the user there was a communication error and it cannot determine if the
+transfer completed or not. It may suggest the user check his or her balance to
+determine if the transfer went through.  (Transfers are atomic, so if the
+user's balance is reduced, the transfer was successful.)

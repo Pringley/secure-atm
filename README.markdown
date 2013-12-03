@@ -16,6 +16,16 @@ Compile using:
 
 This will generate three executables: `atm`, `proxy`, and `bank`.
 
+The Bank has three users on startup:
+
+-   `Alice` (password `deadbeef`, balance 100)
+-   `Bob` (password `deadbeef2.0`, balance 50)
+-   `Eve` (password `deadbeeftastic` balance 0)
+
+## Protocol
+
+The protocol is precisely defined in `PROTOCOL.markdown`.
+
 ## Authors
 
 Written by:
