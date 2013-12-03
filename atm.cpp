@@ -164,7 +164,39 @@ bool check_logged_in(void) {
 }
 
 bool bank_login(const char *user, const char *pin) {
-    return false;
+    login_request_t req;
+    memcpy(req.atm_nonce, nonces.atm_nonce, FIELD_SIZE);
+    memcpy(req.bank_nonce, nonces.bank_nonce, FIELD_SIZE);
+    req.username = std::string(user);
+    req.card = "31415926545"; // TODO: actual card plz
+    req.pin = std::string(pin);
+
+    Packet packet;
+    if(!encode_login_request(packet, req)) {
+        std::cerr << "Could not encode login request." << std::endl;
+        return false;
+    }
+
+    if(!send_recv(packet)) {
+        std::cerr << "Could not login -- try again!" << std::endl;
+        return false;
+    }
+
+    int message_type = get_message_type(packet);
+    if(message_type != LOGIN_RESPONSE_ID) {
+        std::cerr << "Expected LoginResponse from server." << std::endl;
+    }
+
+    login_response_t response;
+    decode_login_response(packet, response);
+
+    // store the auth token we got from the server
+    memcpy(auth_token, response.auth_token, FIELD_SIZE);
+    logged_in = true;
+
+    std::cout << "Login successful." << std::endl;
+
+    return true;
 }
 
 bool bank_withdraw(unsigned int amt) {
