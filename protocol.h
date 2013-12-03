@@ -509,7 +509,6 @@ void decode_key(char *dest) {
         dec.Put(*(base64++));
     dec.MessageEnd();
 
-    // TODO: ensure no buffer overflows
     while (dec.Get(*(byte *)dest))
         dest++;
 }
