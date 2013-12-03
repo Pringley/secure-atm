@@ -174,6 +174,14 @@ bool bank_login(const char *user, const char *pin) {
     // Read card from file in CWD.
     std::fstream file((req.username + ".card").c_str());
     file << req.card;
+    if(file.fail()) {
+        // We figure this isn't an information leak since in theory a person
+        // only has access to one .card file anyway, so "account enumeration"
+        // here is pretty meaningless.
+        std::cerr << "Could not read .card file." << std::endl;
+        file.close();
+        return false;
+    }
     file.close();
 
     Packet packet;
