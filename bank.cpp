@@ -17,6 +17,9 @@
 void* client_thread(void* arg);
 void* console_thread(void* arg);
 
+/* evil global state */
+pthread_mutex_t EVIL_GLOBAL_STATE_MUTEX;
+
 int main(int argc, char* argv[])
 {
 	if(argc != 2)
@@ -26,6 +29,9 @@ int main(int argc, char* argv[])
 	}
 	
 	unsigned short ourport = atoi(argv[1]);
+
+    //mutex setup
+    pthread_mutex_init(&EVIL_GLOBAL_STATE_MUTEX, NULL);
 	
 	//socket setup
 	int lsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
