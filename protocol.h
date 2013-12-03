@@ -1,11 +1,11 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
-#include <cassert>
 #include <cstring>
 #include <string>
 #include <sstream>
 // Crypto++ headers
+#include <modes.h>
 #include <base64.h>
 #include <aes.h>
 #include <osrng.h>
@@ -19,8 +19,10 @@
 #define FIELD_SIZE  128
 #define FIELDS 8
 #define PACKET_SIG_SIZE  (512 / 8)
-#define PACKET_DATA_SIZE (PACKET_SIZE - PACKET_SIG_SIZE)
+#define PACKET_IV_SIZE   (128 / 8)
+#define PACKET_DATA_SIZE (FIELD_SIZE * (FIELDS - 1))
 #define PACKET_SIG_POS   PACKET_DATA_SIZE
+#define PACKET_IV_POS    (PACKET_SIG_POS + PACKET_SIG_SIZE)
 
 #define INVALID_MESSAGE_TYPE -2
 #define NULL_MESSAGE_ID 0
@@ -535,20 +537,20 @@ bool generate_transaction_cert(DataField const &atm_nonce,
 
 void encrypt_packet(Packet &packet, const char *key) {
 
-    // generate HMAC in end of packet
+    // generate HMAC
     HMAC_SHA512 hmac((const byte *)key, KEY_SIZE);
     hmac.Update((byte *)packet, PACKET_DATA_SIZE);
     hmac.Final((byte *)packet + PACKET_SIG_POS);
 
-    // encrypt the whole packet
-    byte *ptr = (byte *)packet;
-    CryptoPP::AES::Encryption enc((const byte *)key, KEY_SIZE);
+    // generate IV
+    byte iv[PACKET_IV_SIZE];
+    randomize((char *)iv, PACKET_IV_SIZE);
+    memcpy((byte *)packet + PACKET_IV_POS, iv, PACKET_IV_SIZE);
 
-    assert(PACKET_SIZE % enc.BlockSize() == 0);
-    for (unsigned i = 0; i < PACKET_SIZE; i += enc.BlockSize()) {
-        enc.ProcessBlock(ptr);
-        ptr += enc.BlockSize();
-    }
+    // encrypt the entire packet (except the IV)
+    CryptoPP::CBC_Mode<CryptoPP::AES>::Encryption enc;
+    enc.SetKeyWithIV((const byte *)key, KEY_SIZE, iv);
+    enc.ProcessData((byte *)packet, (const byte *)packet, PACKET_DATA_SIZE + PACKET_SIG_SIZE);
 }
 
 void dump_hex(const byte *arr, size_t len)
@@ -566,16 +568,15 @@ void dump_hex(const byte *arr, size_t len)
 
 bool decrypt_packet(Packet &packet, const char *key) {
     byte digest[PACKET_SIG_SIZE];
+    byte iv[PACKET_IV_SIZE];
 
-    // decrypt whole packet
-    byte *ptr = (byte *)packet;
-    CryptoPP::AES::Decryption dec((const byte *)key, KEY_SIZE);
+    // grab IV
+    memcpy(iv, (const byte *)packet + PACKET_IV_POS, PACKET_IV_SIZE);
 
-    assert(PACKET_SIZE % dec.BlockSize() == 0);
-    for (unsigned i = 0; i < PACKET_SIZE; i += dec.BlockSize()) {
-        dec.ProcessBlock(ptr);
-        ptr += dec.BlockSize();
-    }
+    // decrypt rest of packet
+    CryptoPP::CBC_Mode<CryptoPP::AES>::Decryption dec;
+    dec.SetKeyWithIV((const byte *)key, KEY_SIZE, iv);
+    dec.ProcessData((byte *)packet, (const byte *)packet, PACKET_SIZE);
 
     // generate HMAC of packet
     HMAC_SHA512 hmac((const byte *)key, KEY_SIZE);
