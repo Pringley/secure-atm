@@ -180,7 +180,6 @@ bool get_nonces(nonce_response_t &nonce_response) {
     nonce_request_t nr;
     randomize(nr.atm_nonce, FIELD_SIZE);
     encode_nonce_request(packet, nr);
-    encrypt_packet(packet, key);
     
     //send the packet through the proxy to the bank
     if(PACKET_SIZE != send(sock, (void*)packet, PACKET_SIZE, 0))
