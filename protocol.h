@@ -562,7 +562,7 @@ bool decrypt_packet(Packet &packet, const char *key) {
     //dump_hex(digest, PACKET_SIG_SIZE);
 
     // compare with decrypted HMAC
-    return memcmp(digest, (byte *)packet + PACKET_SIG_POS, PACKET_SIG_SIZE);
+    return memcmp(digest, (byte *)packet + PACKET_SIG_POS, PACKET_SIG_SIZE) == 0;
 }
 
 void randomize(char *destination, size_t amount) {
